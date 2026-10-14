@@ -4,8 +4,9 @@ import { branding } from "@/lib/branding";
 
 describe("branding", () => {
   it("exposes the locked name and taglines", () => {
-    expect(branding.name).toBe("Kantahub");
-    expect(branding.headerTagline).toBe("Kantahub — Karaoke for your TV. by Eli Dev");
+    expect(branding.name).toBe("KantaHub");
+    expect(branding.byline).toBe("by Eli Dev");
+    expect(branding.headerTagline).toBe("KantaHub — Karaoke for your TV. by Eli Dev");
     expect(branding.footerTagline).toBe("Powered by Eli Dev");
   });
 });

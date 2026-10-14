@@ -18,6 +18,7 @@ import { resolveSongs, searchSongs, findByNumber, songLabel } from "@/lib/songsC
 import { useSpatialNav } from "@/lib/useSpatialNav";
 import type { SongMeta } from "@/lib/scanner";
 import type { LyricLine } from "@/lib/lyrics";
+import type { PlayerEngine } from "@/lib/playerCore";
 import { BackgroundMedia } from "@/components/BackgroundMedia";
 import { TvLyrics } from "@/components/TvLyrics";
 import { Songbook } from "@/components/Songbook";
@@ -37,6 +38,9 @@ import {
 } from "@/components/Icons";
 
 type Overlay = "none" | "songbook" | "number" | "queue";
+
+// Animation delays / durations for the idle equalizer bars (a little bounce).
+const EQ_BARS = [0, 0.35, 0.7, 0.15, 0.55, 0.9, 0.25, 0.65, 0.45];
 
 export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const { state: player, store, engine, unlockAudio } = usePlayer();
@@ -280,7 +284,6 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const currentTitle = currentSong?.title ?? "";
   const currentArtist = currentSong?.artist ?? "";
   const lines = lyricState.id === room?.currentId ? lyricState.lines : [];
-  const effectiveTime = player.positionSec + (room?.lyricOffsetSec ?? 0);
 
   const queueEntries = (room?.queue ?? []).map((entry) => ({
     ...entry,
@@ -410,11 +413,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
                   {songLabel({ title: currentTitle, artist: currentArtist })}
                 </h1>
               </>
-            ) : (
-              <h1 style={{ margin: 0, fontSize: "3.6vh", fontWeight: 800, opacity: 0.85 }}>
-                {branding.name} — ready when you are
-              </h1>
-            )}
+            ) : null}
           </div>
 
           <div style={{ display: "flex", alignItems: "flex-start", gap: "2vw", flex: "none" }}>
@@ -450,19 +449,27 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
           }}
         >
           {!room?.currentId ? (
-            <div
-              data-testid="tv-idle"
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2vh", textAlign: "center" }}
-            >
-              <p style={{ margin: 0, fontSize: "4.4vh", fontWeight: 800, textShadow: "0 0.4vh 2vh rgba(0,0,0,0.9)" }}>
-                Scan the QR code to add a song
-              </p>
-              <p style={{ margin: 0, fontSize: "2.6vh", opacity: 0.7 }}>
-                or open the controller on any phone on this network
-              </p>
+            <div data-testid="tv-idle" className="kh-splash">
+              <h1 className="kh-logo">{branding.name}</h1>
+              <p className="kh-byline">{branding.byline}</p>
+              <div className="kh-eq" aria-hidden="true">
+                {EQ_BARS.map((delay, i) => (
+                  <span
+                    key={i}
+                    style={{ animationDelay: `${delay}s`, animationDuration: `${1.1 + (i % 3) * 0.18}s` }}
+                  />
+                ))}
+              </div>
+              <p className="kh-hint">Scan the QR code or open the controller to add a song</p>
             </div>
           ) : (
-            <TvLyrics lines={lines} timeSec={effectiveTime} />
+            <LiveLyrics
+              engine={engine}
+              isPlaying={player.isPlaying}
+              fallbackTime={player.positionSec}
+              offsetSec={room?.lyricOffsetSec ?? 0}
+              lines={lines}
+            />
           )}
         </div>
 
@@ -594,6 +601,42 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
       )}
     </main>
   );
+}
+
+// Lyrics are driven by the engine's own clock on requestAnimationFrame (~30 fps)
+// rather than the store's throttled 10 fps position, so the highlight tracks the
+// music with minimal lag and no stutter. Only this small subtree re-renders per
+// frame, not the whole display.
+function LiveLyrics({
+  engine,
+  isPlaying,
+  fallbackTime,
+  offsetSec,
+  lines,
+}: {
+  engine: PlayerEngine | null;
+  isPlaying: boolean;
+  fallbackTime: number;
+  offsetSec: number;
+  lines: LyricLine[];
+}) {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    if (!engine || !isPlaying) return;
+    let raf = 0;
+    let last = 0;
+    const loop = (ts: number) => {
+      if (ts - last >= 33) {
+        last = ts;
+        setT(engine.currentTime());
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [engine, isPlaying]);
+  const time = engine && isPlaying ? t : fallbackTime;
+  return <TvLyrics lines={lines} timeSec={time + offsetSec} />;
 }
 
 function ControlButton({

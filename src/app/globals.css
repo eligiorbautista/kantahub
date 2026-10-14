@@ -172,3 +172,114 @@ input:focus-visible,
     color-scheme: dark;
   }
 }
+
+/* --- Idle splash: shown on the TV when nothing is playing ---------------- */
+.kh-splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.2vh;
+  animation: kh-rise 800ms ease-out both;
+}
+@keyframes kh-rise {
+  from {
+    opacity: 0;
+    transform: translateY(2.5vh);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The wordmark: an animated gradient sweeping across "KantaHub". */
+.kh-logo {
+  margin: 0;
+  line-height: 1;
+  font-weight: 900;
+  font-size: clamp(6vh, 12vw, 19vh);
+  letter-spacing: 0.01em;
+  background: linear-gradient(100deg, #fde047 0%, #f97316 22%, #ec4899 48%, #8b5cf6 72%, #38bdf8 100%);
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: kh-shimmer 7s linear infinite;
+  filter: drop-shadow(0 0.5vh 2.4vh rgba(0, 0, 0, 0.8));
+}
+@keyframes kh-shimmer {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 240% 50%;
+  }
+}
+
+.kh-byline {
+  margin: 0;
+  padding: 0.8vh 2.6vh;
+  border-radius: 999px;
+  font-size: clamp(1.9vh, 2.3vw, 3.9vh);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  text-shadow: 0 0.2vh 1.2vh rgba(0, 0, 0, 0.6);
+  animation: kh-glow 3.2s ease-in-out infinite;
+}
+@keyframes kh-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 2vh rgba(139, 92, 246, 0.3);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 4.6vh rgba(236, 72, 153, 0.55);
+    border-color: rgba(255, 255, 255, 0.42);
+  }
+}
+
+/* A little equalizer, bouncing in place. */
+.kh-eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.9vh;
+  height: 6.5vh;
+  margin-top: 0.8vh;
+}
+.kh-eq > span {
+  width: 1.1vh;
+  height: 100%;
+  border-radius: 0.6vh;
+  background: linear-gradient(180deg, #fde047, #ec4899);
+  transform-origin: bottom center;
+  animation: kh-eq 1.1s ease-in-out infinite;
+}
+@keyframes kh-eq {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.kh-hint {
+  margin: 0.6vh 0 0;
+  font-size: clamp(1.4vh, 1.5vw, 2.4vh);
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kh-splash,
+  .kh-logo,
+  .kh-byline,
+  .kh-eq > span {
+    animation: none;
+  }
+}

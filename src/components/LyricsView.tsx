@@ -1,4 +1,4 @@
-import { activeLineIndex, type LyricLine } from "@/lib/lyrics";
+import { activeLineIndex, introCountdown, type LyricLine } from "@/lib/lyrics";
 
 export interface LyricsViewProps {
   lines: LyricLine[];
@@ -8,10 +8,11 @@ export interface LyricsViewProps {
 // Presentational lyric display for the TV: the active line is rendered
 // large at the optical pole (slightly above center), the upcoming line
 // smaller below it. With no lyrics the song is instrumental; before the
-// first line a beat-dot countdown placeholder plays.
+// first line a numeric intro countdown counts down to the opening lyric.
 export function LyricsView({ lines, timeSec }: LyricsViewProps) {
   const active = activeLineIndex(lines, timeSec);
   const next = active >= 0 ? lines[active + 1] : lines[0];
+  const countdown = introCountdown(lines, timeSec);
 
   return (
     <div
@@ -32,12 +33,13 @@ export function LyricsView({ lines, timeSec }: LyricsViewProps) {
         <p style={{ fontSize: "4vw", opacity: 0.7, margin: 0 }}>
           Instrumental — no lyrics
         </p>
-      ) : active < 0 ? (
+      ) : countdown !== null ? (
         <p
           aria-label="Get ready"
-          style={{ fontSize: "6vw", letterSpacing: "0.5em", margin: 0, opacity: 0.8 }}
+          data-testid="countdown"
+          style={{ fontSize: "10vw", fontWeight: 700, lineHeight: 1, margin: 0, opacity: 0.9 }}
         >
-          • • •
+          {countdown}
         </p>
       ) : (
         <p

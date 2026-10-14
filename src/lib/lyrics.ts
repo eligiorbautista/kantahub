@@ -125,3 +125,12 @@ export function activeLineIndex(lines: LyricLine[], timeSec: number): number {
   }
   return active;
 }
+
+// Remaining whole seconds until the first line, for the intro countdown
+// ("3", "2", "1"): ceil keeps each digit up for a full second, so "1" holds
+// through the final second before the opening lyric. Null once lyrics have
+// started or when there are no lines.
+export function introCountdown(lines: LyricLine[], timeSec: number): number | null {
+  if (lines.length === 0 || lines[0].timeSec <= timeSec) return null;
+  return Math.ceil(lines[0].timeSec - timeSec);
+}

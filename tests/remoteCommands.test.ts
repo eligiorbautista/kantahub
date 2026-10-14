@@ -19,6 +19,7 @@ function makeState(patch: Partial<RemoteState> = {}): RemoteState {
     serverNow: 0,
     lyricOffsetSec: 0,
     volume: 0.8,
+    reloadNonce: 0,
     ...patch,
   };
 }
@@ -159,6 +160,11 @@ describe("applyCommand", () => {
     expect(s1.phase).toBe("playing");
     expect(s1.score).toBeNull();
     expect(s1.currentId).toBe("b");
+  });
+
+  it("reloadAll bumps the reload nonce so every client reloads", () => {
+    const s0 = makeState({ reloadNonce: 2 });
+    expect(applyCommand(s0, { kind: "reloadAll" }).reloadNonce).toBe(3);
   });
 
   it("stop clears the stage", () => {

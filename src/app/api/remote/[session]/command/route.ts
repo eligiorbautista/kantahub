@@ -23,6 +23,7 @@ const KINDS = new Set<RemoteCommand["kind"]>([
   "clearQueue",
   "beginPlayback",
   "beginScore",
+  "reloadAll",
   "progress",
 ]);
 

@@ -11,6 +11,7 @@ import { ROOM_ID } from "@/lib/room";
 import { searchSongs, resolveSongs, findByNumber, songLabel } from "@/lib/songsClient";
 import type { SongMeta } from "@/lib/scanner";
 import { branding } from "@/lib/branding";
+import { useReloadOnDemand } from "@/lib/useReloadOnDemand";
 import { Songbook } from "@/components/Songbook";
 import {
   PlayIcon,
@@ -28,6 +29,9 @@ const PAGE_SIZE = 40;
 
 export function Controller() {
   const { state: room, send, connected } = useRoom(ROOM_ID);
+
+  // A "refresh all" from any controller reloads every device, including this one.
+  useReloadOnDemand(room?.reloadNonce);
 
   const [singer, setSinger] = useState("");
   const [query, setQuery] = useState("");
@@ -147,17 +151,24 @@ export function Controller() {
           <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800 }}>{branding.name}</h1>
           <span style={{ fontSize: "0.72rem", opacity: 0.6, letterSpacing: "0.08em" }}>{branding.byline}</span>
         </div>
-        <span
-          title={connected ? "Connected to the room" : "Reconnecting…"}
-          style={{
-            width: "0.6rem",
-            height: "0.6rem",
-            borderRadius: "50%",
-            background: connected ? "#4ade80" : "#f87171",
+        <div className={connected ? "kh-status" : "kh-status offline"} style={{ marginLeft: "0.6rem" }}>
+          <span
+            className={connected ? "kh-status-dot" : "kh-status-dot offline"}
+            title={connected ? "Connected to the room" : "Reconnecting…"}
+          />
+          <span>{connected ? "Online" : "Offline"}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (!window.confirm("Reload every device and clear their caches?")) return;
+            void send({ kind: "reloadAll" });
           }}
-        />
-        <span style={{ opacity: 0.65, fontSize: "0.9rem" }}>{connected ? "Online" : "Offline"}</span>
-        <a href="/tv" style={{ marginLeft: "auto", color: "#93c5fd", fontSize: "0.9rem" }}>
+          style={{ ...btn, marginLeft: "auto", fontSize: "0.85rem", padding: "0.35rem 0.7rem" }}
+        >
+          Refresh all
+        </button>
+        <a href="/tv" style={{ color: "#93c5fd", fontSize: "0.9rem" }}>
           TV screen
         </a>
         <a href="/admin" style={{ color: "#93c5fd", fontSize: "0.9rem" }}>

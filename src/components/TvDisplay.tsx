@@ -16,6 +16,7 @@ import { branding } from "@/lib/branding";
 import { loadLyricLines } from "@/lib/lyricLoader";
 import { resolveSongs, searchSongs, findByNumber, songLabel } from "@/lib/songsClient";
 import { useSpatialNav } from "@/lib/useSpatialNav";
+import { useReloadOnDemand } from "@/lib/useReloadOnDemand";
 import type { SongMeta } from "@/lib/scanner";
 import type { LyricLine } from "@/lib/lyrics";
 import type { PlayerEngine } from "@/lib/playerCore";
@@ -86,6 +87,9 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
 
   // TV-remote D-pad navigation across every [data-focusable] element.
   useSpatialNav();
+
+  // A "refresh all" from the controller reloads this screen too.
+  useReloadOnDemand(room?.reloadNonce);
 
   // Unlock the AudioContext on the first user gesture (remote OK / click).
   useEffect(() => {

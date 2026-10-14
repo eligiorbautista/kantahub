@@ -51,6 +51,12 @@ export interface RemoteState {
   serverNow: number;
   /** Host lyrics timing nudge in seconds (positive delays the highlight). */
   lyricOffsetSec: number;
+  /**
+   * Bumped by the "refresh all" control: every connected client clears its
+   * caches and reloads when this changes, so a stale page can be reset from the
+   * phone without touching each device.
+   */
+  reloadNonce: number;
   /** Playback volume 0..1. */
   volume: number;
 }
@@ -86,6 +92,7 @@ function createEmptyState(session: string): RemoteState {
     serverNow: Date.now(),
     lyricOffsetSec: defaultLyricOffsetSec,
     volume: 0.8,
+    reloadNonce: 0,
   };
 }
 

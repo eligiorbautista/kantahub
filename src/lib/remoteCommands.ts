@@ -24,6 +24,7 @@ export type RemoteCommand =
   | { kind: "clearQueue" }
   | { kind: "beginPlayback" }
   | { kind: "beginScore"; seconds: number }
+  | { kind: "reloadAll" }
   | { kind: "progress"; positionSec: number };
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -166,6 +167,9 @@ export function applyCommand(
         scoreEndsAt: now + seconds * 1000,
       };
     }
+    case "reloadAll":
+      // Ask every connected client to clear caches and reload itself.
+      return { ...state, reloadNonce: state.reloadNonce + 1 };
     case "progress":
       // The TV reports its position; ignore stale reports while paused.
       if (!state.isPlaying) return state;

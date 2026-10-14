@@ -1,7 +1,8 @@
 // src/lib/network.ts
-// Server LAN base-URL detection for the phone-remote QR code.
-// Honors PUBLIC_URL when set; otherwise picks the first non-loopback IPv4
-// address from os.networkInterfaces() on the current PORT (default 3000).
+// Server base-URL detection for the phone-remote QR code.
+// Precedence: PUBLIC_URL when set, then the incoming request's Host header
+// (correct behind Docker/NAT, where os.networkInterfaces() reports the
+// container's internal IP), then the first non-loopback IPv4 as a fallback.
 // Never throws — odd network setups fall back to http://localhost:<PORT>.
 
 import os from "node:os";
@@ -45,6 +46,19 @@ export function buildRemoteUrlFromBase(base: string, session: string): string {
   return `${trimmed}/remote?session=${session}`;
 }
 
-export function buildRemoteUrl(session: string): string {
-  return buildRemoteUrlFromBase(getServerBaseUrl(), session);
+/**
+ * Base URL to advertise for an incoming request.
+ * PUBLIC_URL wins; otherwise the request's Host header is used (this is the
+ * address the client actually reached us on — correct inside Docker, where
+ * os.networkInterfaces() would report the container's internal IP); the LAN
+ * auto-detection is a last-resort fallback.
+ */
+export function baseUrlForRequest(host: string | null | undefined): string {
+  if (process.env.PUBLIC_URL) {
+    return process.env.PUBLIC_URL;
+  }
+  if (host) {
+    return `http://${host}`;
+  }
+  return getServerBaseUrl();
 }

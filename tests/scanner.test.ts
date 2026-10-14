@@ -29,13 +29,20 @@ describe("deriveFromFilename", () => {
 });
 
 describe("parseSongFile", () => {
-  it("prefers embedded title but keeps filename artist", () => {
-    const buf = load("with-lyrics.kar"); // real fixture bytes
+  it("prefers the filename title when the filename follows a convention", () => {
+    const buf = load("with-lyrics.kar"); // embedded track name is "Test Song"
     const s = parseSongFile("ABBA - Dancing Queen.kar", buf);
     expect(s.type).toBe("kar");
-    expect(s.title).toBe("Test Song");   // embedded wins
-    expect(s.artist).toBe("ABBA");       // filename artist kept
+    expect(s.title).toBe("Dancing Queen"); // filename convention wins over generic track name
+    expect(s.artist).toBe("ABBA");
     expect(s.hasLyrics).toBe(true);
     expect(s.id).toBeTruthy();
+  });
+  it("falls back to the embedded title when the filename has no convention", () => {
+    const buf = load("with-lyrics.kar");
+    const s = parseSongFile("random_song.mid", buf);
+    expect(s.title).toBe("Test Song"); // embedded title used as fallback
+    expect(s.artist).toBe("");
+    expect(s.hasLyrics).toBe(true);
   });
 });

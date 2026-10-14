@@ -1,7 +1,10 @@
 // src/lib/scanner.ts
 // Scans a songs directory for MIDI/KAR files and builds their metadata.
-// Embedded MIDI metadata (title, lyrics) is preferred over the filename,
-// while the artist always comes from the "Artist - Title" filename scheme.
+// When the filename follows a "Title - Artist" / "N - Title - Artist" scheme it
+// is authoritative for the title and artist; embedded MIDI metadata is used only
+// as a fallback (karaoke MIDI track names are frequently generic instrument
+// labels like "Melody"/"BASS"/"DRUM", not the song title). Lyrics detection
+// always comes from the embedded MIDI data.
 
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
@@ -47,11 +50,15 @@ export function parseSongFile(fileName: string, buf: Buffer): SongMeta {
   const { title: fileTitle, artist } = deriveFromFilename(fileName);
   const type: SongType = fileName.toLowerCase().endsWith(".kar") ? "kar" : "midi";
   const id = createHash("sha1").update(fileName).digest("hex").slice(0, 12);
+  // A filename carrying the " - " convention is trusted for the title: karaoke
+  // MIDI files commonly name their first track generically ("Melody"), which is
+  // not the song title. Without the convention, fall back to embedded metadata.
+  const filenameHasConvention = path.basename(fileName).replace(/\.[^.]+$/, "").includes(" - ");
   try {
     const info = readMidiInfo(buf);
     return {
       id,
-      title: info.title ?? fileTitle,
+      title: filenameHasConvention ? fileTitle : info.title ?? fileTitle,
       artist,
       fileName,
       type,

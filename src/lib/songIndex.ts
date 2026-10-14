@@ -28,6 +28,11 @@ const building = new Map<string, Promise<SongMeta[]>>();
 
 const MISSING = "__missing__";
 
+// Bump when scanner/index logic changes in a way that alters the emitted
+// SongMeta, so a persisted index built by older code is rebuilt instead of
+// reused. It is part of the staleness signature.
+export const INDEX_VERSION = 2;
+
 export function defaultSongsDir(): string {
   return process.env.SONGS_DIR ?? "/songs";
 }
@@ -63,7 +68,7 @@ async function signature(dir: string): Promise<string | null> {
         }
       }
     }
-    return parts.join("|");
+    return `v${INDEX_VERSION}:${parts.join("|")}`;
   } catch {
     return null;
   }

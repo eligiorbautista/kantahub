@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { vi } from "vitest";
-import { getSongsIndex, invalidateSongsIndex } from "@/lib/songIndex";
+import { getSongsIndex, invalidateSongsIndex, INDEX_VERSION } from "@/lib/songIndex";
 
 const fixture = (n: string) => path.join(__dirname, "fixtures", "songs", n);
 
@@ -45,8 +45,8 @@ describe("getSongsIndex", () => {
     process.env.INDEX_DIR = idxDir;
     try {
       // Seed a persisted record matching the current signature but missing
-      // the file that is actually on disk (flat dir: mtimeMs:count).
-      const sig = `${statSync(d).mtimeMs}:${readdirSync(d).length}`;
+      // the file that is actually on disk (flat dir: version:mtimeMs:count).
+      const sig = `v${INDEX_VERSION}:${statSync(d).mtimeMs}:${readdirSync(d).length}`;
       const hash = createHash("sha1").update(path.resolve(d)).digest("hex");
       writeFileSync(
         path.join(idxDir, `songs-${hash}.json`),

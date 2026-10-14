@@ -61,11 +61,13 @@ input:focus-visible,
   margin: 0 auto;
   padding: 1rem;
   grid-template-columns: minmax(0, 1fr);
+  /* On phones the queue sits above song selection so it is the first thing a
+     singer sees; the two-column tablet/desktop layout is defined below. */
   grid-template-areas:
     "header"
     "now"
-    "search"
-    "queue";
+    "queue"
+    "search";
   align-content: start;
 }
 .ctl-header {
@@ -89,6 +91,16 @@ input:focus-visible,
     max-width: 52rem;
     padding: 1.4rem;
     gap: 1.2rem;
+  }
+}
+
+/* Phones: cap the lists so the page never becomes one long scroll. */
+@media (max-width: 61.99rem) {
+  .ctl-scroll {
+    max-height: 42vh;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding-right: 0.35rem;
   }
 }
 

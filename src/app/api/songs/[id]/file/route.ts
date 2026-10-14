@@ -18,6 +18,9 @@ export async function GET(
   }
   const buf = await fs.readFile(path.join(songsDir, song.fileName));
   return new NextResponse(new Uint8Array(buf), {
-    headers: { "Content-Type": "audio/midi" },
+    // Song bytes must never be served stale from a cache: files can be replaced
+    // in place (same path, new audio) and the player must always get the real
+    // bytes for the id it asked for.
+    headers: { "Content-Type": "audio/midi", "Cache-Control": "private, no-store" },
   });
 }

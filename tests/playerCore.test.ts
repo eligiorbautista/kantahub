@@ -130,6 +130,9 @@ describe("stale async guards", () => {
     resolveBFn(ok()); // current load finishes
     await flush();
     expect(engine.play).toHaveBeenCalledTimes(1);
+    // The superseded load must never have reached the engine's synth.
+    expect(engine.loadSong).toHaveBeenCalledTimes(1);
+    expect(engine.loadSong).toHaveBeenCalledWith(expect.any(ArrayBuffer), "b.mid");
     expect(store.state().currentId).toBe("b");
     expect(store.state().isPlaying).toBe(true);
   });

@@ -136,8 +136,12 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     // phase === "playing"
     if (player.currentId !== rid) {
       unlockAudio();
-      if (engine) store.playSong(rid);
-      else pendingRef.current = rid;
+      if (engine) {
+        pendingRef.current = null; // a direct play supersedes any parked selection
+        store.playSong(rid);
+      } else {
+        pendingRef.current = rid;
+      }
       return;
     }
     if (wantPlaying && !player.isPlaying) {

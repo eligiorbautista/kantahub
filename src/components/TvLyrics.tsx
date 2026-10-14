@@ -6,7 +6,7 @@
 // karaoke wipe, and several upcoming lines below — so a singer who does not
 // have the song memorized can still keep up. The lyrics are visible immediately
 // (before the first line), so the singer can read ahead.
-import { activeLineIndex, type LyricLine } from "@/lib/lyrics";
+import { activeLineIndex, introCountdown, type LyricLine } from "@/lib/lyrics";
 
 export interface TvLyricsProps {
   lines: LyricLine[];
@@ -29,6 +29,9 @@ export function TvLyrics({ lines, timeSec }: TvLyricsProps) {
   }
 
   const active = activeLineIndex(lines, timeSec);
+  // Seconds until the singer's first line: shown as a countdown badge while the
+  // instrumental intro plays, so the singer knows exactly when to come in.
+  const countdown = introCountdown(lines, timeSec);
   // Before the first line, treat the opening line as active (wipe at 0%) so the
   // lyrics are on screen from the very start.
   const idx = Math.max(0, active);
@@ -49,6 +52,21 @@ export function TvLyrics({ lines, timeSec }: TvLyricsProps) {
         textAlign: "center",
       }}
     >
+      {countdown !== null && (
+        <p
+          data-testid="tv-intro-countdown"
+          aria-live="polite"
+          style={{
+            margin: "0 0 1.2vh",
+            fontSize: "3.4vh",
+            fontWeight: 700,
+            textShadow: "0 0.3vh 1vh rgba(0,0,0,0.9)",
+          }}
+        >
+          Singing in{" "}
+          <span style={{ color: "#fbbf24", fontWeight: 900, fontSize: "5vh" }}>{countdown}</span>…
+        </p>
+      )}
       {window.map((line, i) => {
         const distance = start + i - idx; // <0 past, 0 active, >0 upcoming
         const isActive = distance === 0;

@@ -116,6 +116,9 @@ export function createPlayerStore(engine?: PlayerEngine): PlayerStore {
     const res = await fetch(`/api/songs/${encodeURIComponent(id)}/file`);
     if (!res.ok) throw new Error(`failed to fetch song ${id}: ${res.status}`);
     const buf = await res.arrayBuffer();
+    // Check the token BEFORE handing the bytes to the engine: a superseded load
+    // must never replace the song a newer play() already put on the synth.
+    if (token !== playToken) return;
     await engine.loadSong(buf, `${id}.mid`);
     // Bail if a newer playSong/pause/stop superseded this request while loading.
     if (token !== playToken) return;

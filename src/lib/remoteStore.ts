@@ -50,6 +50,15 @@ export type RemoteSubscriber = (state: RemoteState) => void;
 const sessions = new Map<string, RemoteState>();
 const subscribers = new Map<string, Set<RemoteSubscriber>>();
 
+// Default lyric-sync offset for new rooms, seeded from persisted host settings
+// at server start (see instrumentation.ts). Kept as a plain module value so this
+// module stays free of node-only imports (client code imports its types).
+let defaultLyricOffsetSec = 0;
+
+export function setDefaultLyricOffsetSec(v: number): void {
+  defaultLyricOffsetSec = Math.max(-5, Math.min(5, v));
+}
+
 function createEmptyState(session: string): RemoteState {
   return {
     session,
@@ -62,7 +71,7 @@ function createEmptyState(session: string): RemoteState {
     seekNonce: 0,
     countdownEndsAt: null,
     serverNow: Date.now(),
-    lyricOffsetSec: 0,
+    lyricOffsetSec: defaultLyricOffsetSec,
     volume: 0.8,
   };
 }

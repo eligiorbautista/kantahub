@@ -9,5 +9,14 @@ export async function register() {
     warmSongsIndex().catch((err) => {
       console.warn("kantahub: songs index warm-up failed:", err);
     });
+
+    // Seed the room's default lyric-sync offset from persisted host settings.
+    try {
+      const { loadSettings } = await import("@/lib/settings");
+      const { setDefaultLyricOffsetSec } = await import("@/lib/remoteStore");
+      setDefaultLyricOffsetSec((await loadSettings()).lyricOffsetSec);
+    } catch (err) {
+      console.warn("kantahub: failed to load host settings:", err);
+    }
   }
 }

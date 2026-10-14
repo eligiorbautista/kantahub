@@ -82,5 +82,10 @@ export async function POST(
   }
 
   const next = applyCommand(getSession(session), body);
+  if (body.kind === "setLyricOffset") {
+    // Persist the tuned value so it survives a container restart.
+    const { saveSettings } = await import("@/lib/settings");
+    void saveSettings({ lyricOffsetSec: next.lyricOffsetSec });
+  }
   return NextResponse.json(updateSession(session, next));
 }

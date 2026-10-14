@@ -26,6 +26,9 @@ import {
 
 const PAGE_SIZE = 40;
 
+/** Round to one decimal so repeated ±0.1 taps do not drift into 0.30000004. */
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
 export function Controller() {
   const { state: room, send, connected } = useRoom(ROOM_ID);
 
@@ -206,6 +209,54 @@ export function Controller() {
               style={{ width: "8rem" }}
             />
           </label>
+        </div>
+
+        {/* Lyrics sync: nudge the TV highlight to match the TV's audio latency.
+            Kept on the controller (not the TV) so it cannot be bumped by accident
+            while someone is singing. */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+            marginTop: "0.9rem",
+            paddingTop: "0.7rem",
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <span style={{ fontSize: "0.85rem", opacity: 0.7 }}>Lyrics sync</span>
+          <button
+            type="button"
+            style={btnSmall}
+            onClick={() =>
+              void send({ kind: "setLyricOffset", offsetSec: round1((room?.lyricOffsetSec ?? 0) - 0.1) })
+            }
+          >
+            −0.1 later
+          </button>
+          <span
+            style={{
+              minWidth: "5ch",
+              textAlign: "center",
+              fontVariantNumeric: "tabular-nums",
+              fontWeight: 700,
+            }}
+          >
+            {(room?.lyricOffsetSec ?? 0).toFixed(1)}s
+          </span>
+          <button
+            type="button"
+            style={btnSmall}
+            onClick={() =>
+              void send({ kind: "setLyricOffset", offsetSec: round1((room?.lyricOffsetSec ?? 0) + 0.1) })
+            }
+          >
+            +0.1 earlier
+          </button>
+          <button type="button" style={btnSmall} onClick={() => void send({ kind: "setLyricOffset", offsetSec: 0 })}>
+            Reset
+          </button>
         </div>
       </section>
 

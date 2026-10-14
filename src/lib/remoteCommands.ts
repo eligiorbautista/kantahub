@@ -120,7 +120,8 @@ export function applyCommand(
     case "setVolume":
       return { ...state, volume: clamp01(cmd.volume) };
     case "setLyricOffset":
-      return { ...state, lyricOffsetSec: cmd.offsetSec };
+      // Clamp so a stuck key cannot push the highlight arbitrarily far out.
+      return { ...state, lyricOffsetSec: Math.max(-5, Math.min(5, cmd.offsetSec)) };
     case "setSinger":
       return { ...state, currentSinger: cmd.singer };
     case "clearQueue":

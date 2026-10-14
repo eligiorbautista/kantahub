@@ -1,14 +1,18 @@
 "use client";
 
 // Bottom transport bar: restart / play-pause / stop / next, plus the karaoke
-// voice controls (guide-melody mute, key transpose, tempo, volume). ArrowLeft
-// and ArrowRight move between buttons (skipping disabled ones), Enter
-// activates the focused button natively; the sliders are native range inputs
-// so ArrowLeft/Right (and Up/Down) adjust them natively. ArrowDown on a
-// playback button bridges focus into the voice row; ArrowUp on a voice
-// control bridges back to the playback row's current button. The currently
-// loaded song is displayed above the controls in large TV-readable text.
+// voice controls (guide-melody mute, key transpose, tempo, volume). The
+// playback row uses a roving tabIndex: ArrowLeft/ArrowRight move between
+// buttons (skipping disabled ones), ArrowDown bridges into the voice row.
+// Inside the voice row another roving model applies: on a button,
+// ArrowLeft/ArrowRight move between controls and ArrowUp bridges back to the
+// playback row; on a range input ArrowLeft/ArrowRight adjust the value
+// natively while ArrowUp/ArrowDown move between the voice controls so the
+// user can still leave the slider. A focused control keeps a visible outline.
+// The currently loaded song is displayed above the controls in TV-readable
+// text.
 import { useRef, useState, type RefObject } from "react";
+import { nextVoiceIndex } from "@/lib/voiceNav";
 import { usePlayer } from "@/components/PlayerProvider";
 import {
   clampTempo,
@@ -35,9 +39,11 @@ export interface TransportProps {
 
 // Karaoke voice controls bound straight to the engine. Engine settings
 // (muted channel, key shift, rate, gain) persist across songs, so the UI
-// state lives here for the session instead of the per-song store. ArrowUp on
-// any non-slider control bridges focus back to the playback row (native range
-// inputs keep their ArrowUp/Down value adjustment).
+// state lives here for the session instead of the per-song store. The row uses
+// a roving tabIndex: on a button, ArrowLeft/ArrowRight move between controls
+// and ArrowUp bridges back to the playback row; on a range input,
+// ArrowLeft/ArrowRight stay native (adjust the value) while ArrowUp/ArrowDown
+// move between the voice controls.
 function VoiceControls({
   rowRef,
   onArrowUp,
@@ -50,6 +56,21 @@ function VoiceControls({
   const [transpose, setTranspose] = useState(TRANSPOSE_DEFAULT);
   const [tempo, setTempo] = useState(TEMPO_DEFAULT);
   const [volume, setVolume] = useState(VOLUME_DEFAULT);
+
+  // Roving focus over the 3 buttons + 2 range inputs, mirroring the playback
+  // row: exactly one control is Tab-reachable (tabIndex 0) and arrows move the
+  // cursor within the row.
+  const CONTROLS = 5;
+  const [focusIdx, setFocusIdx] = useState(0);
+  const controlRefs = useRef<Array<HTMLElement | null>>([]);
+  const focusControl = (i: number) => {
+    setFocusIdx(i);
+    controlRefs.current[i]?.focus();
+  };
+  const moveWithin = (from: number, dir: 1 | -1) => {
+    const next = nextVoiceIndex(from, CONTROLS, dir);
+    if (next !== from) focusControl(next);
+  };
 
   const toggleGuideMute = () => {
     const next = !guideMuted;
@@ -92,22 +113,46 @@ function VoiceControls({
       role="toolbar"
       aria-label="Voice controls"
       onKeyDown={(e) => {
-        // Native range inputs also adjust their value on ArrowUp/Down; leave
-        // those to the browser and only bridge back from non-slider controls.
+        const idx = controlRefs.current.indexOf(e.target as HTMLElement);
+        if (idx === -1) return;
         const isSlider =
           e.target instanceof HTMLInputElement && e.target.type === "range";
-        if (e.key === "ArrowUp" && !isSlider) {
+        // Buttons: Left/Right move within the row; Up bridges back to playback.
+        // Sliders: Left/Right stay native (adjust the value); Up/Down move
+        // within the row so the user can still leave the slider.
+        if (e.key === "ArrowRight" && !isSlider) {
           e.preventDefault();
-          onArrowUp();
+          moveWithin(idx, 1);
+        } else if (e.key === "ArrowLeft" && !isSlider) {
+          e.preventDefault();
+          moveWithin(idx, -1);
+        } else if (e.key === "ArrowUp") {
+          if (isSlider) {
+            e.preventDefault();
+            moveWithin(idx, -1);
+          } else {
+            e.preventDefault();
+            onArrowUp();
+          }
+        } else if (e.key === "ArrowDown") {
+          if (isSlider) {
+            e.preventDefault();
+            moveWithin(idx, 1);
+          }
         }
       }}
       style={{ display: "flex", alignItems: "center", gap: "1vw" }}
     >
-      {keyButtons.map((btn) => (
+      {keyButtons.map((btn, i) => (
         <button
           key={btn.id}
+          ref={(el) => {
+            controlRefs.current[i] = el;
+          }}
           type="button"
+          tabIndex={i === focusIdx ? 0 : -1}
           aria-label={btn.aria}
+          onFocus={() => setFocusIdx(i)}
           onClick={btn.onClick}
           style={{
             padding: "0.8vh 1vw",
@@ -129,11 +174,16 @@ function VoiceControls({
       <label style={{ display: "flex", alignItems: "center", gap: "0.5vw", fontSize: "1vw" }}>
         Tempo {tempo.toFixed(2)}×
         <input
+          ref={(el) => {
+            controlRefs.current[3] = el;
+          }}
           type="range"
           min={TEMPO_MIN}
           max={TEMPO_MAX}
           step={0.05}
           value={tempo}
+          tabIndex={3 === focusIdx ? 0 : -1}
+          onFocus={() => setFocusIdx(3)}
           onChange={(e) => changeTempo(Number(e.target.value))}
           style={{ width: "10vw" }}
         />
@@ -141,11 +191,16 @@ function VoiceControls({
       <label style={{ display: "flex", alignItems: "center", gap: "0.5vw", fontSize: "1vw" }}>
         Vol {Math.round(volume * 100)}
         <input
+          ref={(el) => {
+            controlRefs.current[4] = el;
+          }}
           type="range"
           min={0}
           max={1}
           step={0.05}
           value={volume}
+          tabIndex={4 === focusIdx ? 0 : -1}
+          onFocus={() => setFocusIdx(4)}
           onChange={(e) => changeVolume(Number(e.target.value))}
           style={{ width: "10vw" }}
         />

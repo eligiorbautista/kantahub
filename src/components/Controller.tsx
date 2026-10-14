@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRoom } from "@/lib/useRoom";
 import { ROOM_ID } from "@/lib/room";
-import { searchSongs, resolveSongs, findByNumber, songLabel } from "@/lib/songsClient";
+import { searchSongs, resolveSongs, songLabel } from "@/lib/songsClient";
 import type { SongMeta } from "@/lib/scanner";
 import { branding } from "@/lib/branding";
 import { useReloadOnDemand } from "@/lib/useReloadOnDemand";
@@ -21,7 +21,6 @@ import {
   StopIcon,
   SearchIcon,
   BookIcon,
-  MusicIcon,
   CloseIcon,
 } from "@/components/Icons";
 
@@ -33,13 +32,11 @@ export function Controller() {
   // A "refresh all" from any controller reloads every device, including this one.
   useReloadOnDemand(room?.reloadNonce);
 
-  const [singer, setSinger] = useState("");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SongMeta[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [numberInput, setNumberInput] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [songbookOpen, setSongbookOpen] = useState(false);
   const [songsById, setSongsById] = useState<Map<string, SongMeta>>(new Map());
@@ -99,7 +96,7 @@ export function Controller() {
         return "duplicate" as const;
       }
       remember(song);
-      const next = await send({ kind: "enqueue", songId: song.id, singer: singer.trim() });
+      const next = await send({ kind: "enqueue", songId: song.id });
       if (!next) {
         setFeedback("Song not found");
         return "error" as const;
@@ -107,29 +104,17 @@ export function Controller() {
       setFeedback(`Added “${song.title}” to the queue`);
       return "added" as const;
     },
-    [queuedIds, send, singer, remember],
+    [queuedIds, send, remember],
   );
 
   const playNow = useCallback(
     (song: SongMeta) => {
       remember(song);
-      void send({ kind: "play", songId: song.id, singer: singer.trim() });
+      void send({ kind: "play", songId: song.id });
       setFeedback("Now playing");
     },
-    [send, singer, remember],
+    [send, remember],
   );
-
-  const submitNumber = useCallback(async () => {
-    const q = numberInput.trim();
-    if (!q) return;
-    const song = (await findByNumber(q)) ?? (await searchSongs(q, 10, 0)).items[0] ?? null;
-    if (!song) {
-      setFeedback("Song not found");
-      return;
-    }
-    await addSong(song);
-    setNumberInput("");
-  }, [numberInput, addSong]);
 
   const currentSong = room?.currentId ? songsById.get(room.currentId) : undefined;
 
@@ -229,19 +214,9 @@ export function Controller() {
         </div>
       </section>
 
-      {/* Singer + add songs */}
+      {/* Search + add songs (one box: title, artist, or song number) */}
       <section className="ctl-search" style={card}>
-        <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-          <span style={{ fontSize: "0.85rem", opacity: 0.7 }}>Singer (for the next song you add)</span>
-          <input
-            value={singer}
-            onChange={(e) => setSinger(e.target.value)}
-            placeholder="e.g. Juan"
-            style={input}
-          />
-        </label>
-
-        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginTop: "0.8rem" }}>
+        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: "1 1 14rem" }}>
             <span style={{ position: "absolute", left: "0.6rem", top: "50%", transform: "translateY(-50%)", opacity: 0.5 }}>
               <SearchIcon size={18} />
@@ -253,28 +228,12 @@ export function Controller() {
                 setQuery(e.target.value);
                 setOffset(0);
               }}
-              placeholder="Search title or artist…"
+              placeholder="Search title, artist, or song number…"
               style={{ ...input, paddingLeft: "2.2rem" }}
             />
           </div>
           <button type="button" onClick={() => setSongbookOpen(true)} style={btn}>
             <BookIcon size={18} /> Songbook
-          </button>
-        </div>
-
-        <div style={{ display: "flex", gap: "0.6rem", marginTop: "0.6rem", flexWrap: "wrap" }}>
-          <input
-            value={numberInput}
-            onChange={(e) => setNumberInput(e.target.value.replace(/\D/g, ""))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void submitNumber();
-            }}
-            inputMode="numeric"
-            placeholder="Song number"
-            style={{ ...input, flex: "0 1 10rem" }}
-          />
-          <button type="button" onClick={() => void submitNumber()} style={btnPrimary}>
-            <MusicIcon size={18} /> Add number
           </button>
         </div>
 

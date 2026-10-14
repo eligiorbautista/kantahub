@@ -4,9 +4,11 @@
 // voice controls (guide-melody mute, key transpose, tempo, volume). ArrowLeft
 // and ArrowRight move between buttons (skipping disabled ones), Enter
 // activates the focused button natively; the sliders are native range inputs
-// so arrow keys adjust them without extra handling. The currently loaded song
-// is displayed above the controls in large TV-readable text.
-import { useRef, useState } from "react";
+// so ArrowLeft/Right (and Up/Down) adjust them natively. ArrowDown on a
+// playback button bridges focus into the voice row; ArrowUp on a voice
+// control bridges back to the playback row's current button. The currently
+// loaded song is displayed above the controls in large TV-readable text.
+import { useRef, useState, type RefObject } from "react";
 import { usePlayer } from "@/components/PlayerProvider";
 import {
   clampTempo,
@@ -33,8 +35,16 @@ export interface TransportProps {
 
 // Karaoke voice controls bound straight to the engine. Engine settings
 // (muted channel, key shift, rate, gain) persist across songs, so the UI
-// state lives here for the session instead of the per-song store.
-function VoiceControls() {
+// state lives here for the session instead of the per-song store. ArrowUp on
+// any non-slider control bridges focus back to the playback row (native range
+// inputs keep their ArrowUp/Down value adjustment).
+function VoiceControls({
+  rowRef,
+  onArrowUp,
+}: {
+  rowRef: RefObject<HTMLDivElement | null>;
+  onArrowUp: () => void;
+}) {
   const { engine } = usePlayer();
   const [guideMuted, setGuideMuted] = useState(false);
   const [transpose, setTranspose] = useState(TRANSPOSE_DEFAULT);
@@ -78,8 +88,19 @@ function VoiceControls() {
 
   return (
     <div
+      ref={rowRef}
       role="toolbar"
       aria-label="Voice controls"
+      onKeyDown={(e) => {
+        // Native range inputs also adjust their value on ArrowUp/Down; leave
+        // those to the browser and only bridge back from non-slider controls.
+        const isSlider =
+          e.target instanceof HTMLInputElement && e.target.type === "range";
+        if (e.key === "ArrowUp" && !isSlider) {
+          e.preventDefault();
+          onArrowUp();
+        }
+      }}
       style={{ display: "flex", alignItems: "center", gap: "1vw" }}
     >
       {keyButtons.map((btn) => (
@@ -164,6 +185,16 @@ export function Transport({
   // Never keep the roving cursor on a disabled button.
   const focusIdx = buttons[rawFocusIdx] && !buttons[rawFocusIdx].disabled ? rawFocusIdx : firstEnabled;
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  // ArrowDown/ArrowUp bridge into/out of the voice-controls row below.
+  const voiceRowRef = useRef<HTMLDivElement | null>(null);
+  const focusVoiceRow = () => {
+    voiceRowRef.current
+      ?.querySelector<HTMLElement>("button, input")
+      ?.focus();
+  };
+  const focusPlaybackRow = () => {
+    refs.current[focusIdx]?.focus();
+  };
 
   const move = (from: number, dir: 1 | -1) => {
     for (let i = from + dir; i >= 0 && i < buttons.length; i += dir) {
@@ -218,6 +249,9 @@ export function Transport({
               } else if (e.key === "ArrowLeft") {
                 e.preventDefault();
                 move(i, -1);
+              } else if (e.key === "ArrowDown") {
+                e.preventDefault();
+                focusVoiceRow();
               }
             }}
             style={{
@@ -235,7 +269,7 @@ export function Transport({
           </button>
         ))}
       </div>
-      <VoiceControls />
+      <VoiceControls rowRef={voiceRowRef} onArrowUp={focusPlaybackRow} />
     </div>
   );
 }

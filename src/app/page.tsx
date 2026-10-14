@@ -1,9 +1,10 @@
-import { branding } from "@/lib/branding";
+import { PlayerProvider } from "@/components/PlayerProvider";
+import { TvShell } from "@/components/TvShell";
 
 export default function Home() {
   return (
-    <main>
-      <p>{branding.footerTagline}</p>
-    </main>
+    <PlayerProvider>
+      <TvShell />
+    </PlayerProvider>
   );
 }

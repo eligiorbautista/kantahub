@@ -42,6 +42,14 @@ a {
   text-decoration: none;
 }
 
+/* TV keyboard navigation: focus must be obvious from across the room. */
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 0.25rem solid #f7c948;
+  outline-offset: 0.125rem;
+}
+
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;

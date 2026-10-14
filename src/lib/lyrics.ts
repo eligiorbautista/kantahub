@@ -16,15 +16,18 @@ interface RawLyric {
   text: string;
 }
 
+const textDecoder = new TextDecoder("utf-8");
+
 // Collect raw FF 05 lyric events with absolute tick positions. Never throws:
-// unparsable files simply have no lyrics.
-export function rawLyricEvents(buf: Buffer): RawLyric[] {
+// unparsable files simply have no lyrics. Accepts any Uint8Array so the same
+// extractor runs server-side and in the browser without a Buffer polyfill.
+export function rawLyricEvents(buf: Uint8Array): RawLyric[] {
   const events: RawLyric[] = [];
   try {
     walkMidiTracks(buf, {
       onMeta(type, data, ticks) {
         if (type === 0x05 && data.length > 0) {
-          events.push({ ticks, text: data.toString("utf8") });
+          events.push({ ticks, text: textDecoder.decode(data) });
         }
       },
     });
@@ -76,7 +79,7 @@ function chunkLyric(text: string): { breakBefore: BreakKind; body: string; break
 // Consecutive fragments between break markers merge into one display line;
 // whitespace-only entries are dropped. Returns [] when there are no lyrics.
 export function extractLyrics(
-  buf: Buffer,
+  buf: Uint8Array,
   ticksToSeconds: (ticks: number) => number,
 ): LyricLine[] {
   const raw = rawLyricEvents(buf);

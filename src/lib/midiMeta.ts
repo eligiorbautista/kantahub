@@ -5,6 +5,10 @@
 //
 // Exposes the low-level track walker (walkMidiTracks) so other readers
 // (notably src/lib/lyrics.ts) can reuse one parser instead of duplicating it.
+//
+// All entry points accept any Uint8Array (Node's Buffer extends it), so the
+// same parser runs server-side (scanner) and in the browser (TvShell lyric
+// extraction) without a Buffer polyfill.
 
 export interface MidiInfo {
   title?: string;
@@ -20,14 +24,33 @@ export interface MidiHeaderInfo {
 
 export interface MidiEventHandlers {
   // Meta event (0xFF): ticks is the absolute tick position within the file.
-  onMeta?: (metaType: number, data: Buffer, ticks: number) => void;
+  onMeta?: (metaType: number, data: Uint8Array, ticks: number) => void;
 }
 
 type ByteReader = { value: number; pos: number };
 
+const textDecoder = new TextDecoder("utf-8");
+
+// Big-endian integer reads (Buffer.readUInt* equivalents for any Uint8Array).
+function readU16(buf: Uint8Array, pos: number): number {
+  return (buf[pos] << 8) | buf[pos + 1];
+}
+
+function readU32(buf: Uint8Array, pos: number): number {
+  return (buf[pos] * 0x1000000 + ((buf[pos + 1] << 16) | (buf[pos + 2] << 8) | buf[pos + 3])) >>> 0;
+}
+
+// Compare bytes at pos with an ASCII string ("MThd"/"MTrk" chunk ids).
+function asciiEquals(buf: Uint8Array, pos: number, id: string): boolean {
+  for (let i = 0; i < id.length; i++) {
+    if (buf[pos + i] !== id.charCodeAt(i)) return false;
+  }
+  return true;
+}
+
 // Read a variable-length quantity (delta time or meta length): up to 4
 // bytes, 7 bits each, high bit set means another byte follows.
-function readVlq(track: Buffer, pos: number): ByteReader {
+function readVlq(track: Uint8Array, pos: number): ByteReader {
   let value = 0;
   for (let i = 0; i < 4; i++) {
     if (pos >= track.length) throw new Error("Unexpected end of MIDI data");
@@ -40,7 +63,7 @@ function readVlq(track: Buffer, pos: number): ByteReader {
 
 // Walk one MTrk chunk ([start, end) within the original buffer), invoking the
 // handlers for each event of interest with its absolute tick position.
-function parseTrack(chunk: Buffer, handlers: MidiEventHandlers): void {
+function parseTrack(chunk: Uint8Array, handlers: MidiEventHandlers): void {
   let pos = 0;
   let ticks = 0;
   // Running status: last channel-voice status byte, reused when an event
@@ -92,25 +115,25 @@ function parseTrack(chunk: Buffer, handlers: MidiEventHandlers): void {
 // Walk every MTrk chunk of a Standard MIDI File buffer, invoking `handlers`
 // for each parsed event. Returns the header division info. Throws on
 // malformed input; callers decide whether to swallow that.
-export function walkMidiTracks(buf: Buffer, handlers: MidiEventHandlers): MidiHeaderInfo {
+export function walkMidiTracks(buf: Uint8Array, handlers: MidiEventHandlers): MidiHeaderInfo {
   // MThd header: magic(4) length(4) format(2) ntrks(2) division(2)
-  if (buf.length < 14 || buf.toString("latin1", 0, 4) !== "MThd") {
+  if (buf.length < 14 || !asciiEquals(buf, 0, "MThd")) {
     throw new Error("Not a MIDI file");
   }
-  const headerLength = buf.readUInt32BE(4);
+  const headerLength = readU32(buf, 4);
   if (headerLength < 6) throw new Error("Invalid MIDI header");
-  const division = buf.readUInt16BE(12);
+  const division = readU16(buf, 12);
   // High bit set means SMPTE time division rather than ticks-per-quarter.
   const ticksPerQuarter = (division & 0x8000) === 0 ? division : 0;
-  const trackCount = buf.readUInt16BE(10);
+  const trackCount = readU16(buf, 10);
   let pos = 8 + headerLength;
 
   for (let t = 0; t < trackCount && pos + 8 <= buf.length; t++) {
-    const chunkId = buf.toString("latin1", pos, pos + 4);
-    const chunkLength = buf.readUInt32BE(pos + 4);
+    const chunkId = asciiEquals(buf, pos, "MTrk");
+    const chunkLength = readU32(buf, pos + 4);
     const start = pos + 8;
     const end = Math.min(start + chunkLength, buf.length);
-    if (chunkId === "MTrk") parseTrack(buf.subarray(start, end), handlers);
+    if (chunkId) parseTrack(buf.subarray(start, end), handlers);
     pos = start + chunkLength;
   }
   return { ticksPerQuarter };
@@ -119,7 +142,7 @@ export function walkMidiTracks(buf: Buffer, handlers: MidiEventHandlers): MidiHe
 // Parse a MIDI/KAR buffer. Never throws: on corrupt or truncated input it
 // returns { hasLyrics: false } so callers can treat unparsable files as
 // plain instrumental MIDI.
-export function readMidiInfo(buf: Buffer): MidiInfo {
+export function readMidiInfo(buf: Uint8Array): MidiInfo {
   const info: MidiInfo = { hasLyrics: false };
   try {
     walkMidiTracks(buf, {
@@ -127,7 +150,7 @@ export function readMidiInfo(buf: Buffer): MidiInfo {
         if (type === 0x03) {
           // Track name: first non-empty name wins (conventionally the title).
           if (info.title === undefined && data.length > 0) {
-            info.title = data.toString("utf8");
+            info.title = textDecoder.decode(data);
           }
         } else if (type === 0x05) {
           info.hasLyrics = true;

@@ -143,11 +143,12 @@ export function TvShell() {
   const playNow = useCallback(
     (song: SongMeta) => {
       unlockAudio();
-      // Record the play at selection time so even a booting engine still
-      // counts it; a replay just moves the song back to the front.
-      pushRecent(defaultStorage(), song.id);
       if (engine) store.playSong(song.id);
       else pendingRef.current = song.id;
+      // Record after playback is underway (or parked): even a storage that
+      // rejects writes can never preempt the song. A replay just moves it
+      // back to the front.
+      pushRecent(defaultStorage(), song.id);
     },
     [unlockAudio, engine, store],
   );

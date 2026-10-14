@@ -100,3 +100,25 @@ describe("persistence external store", () => {
     expect(getEmptySnapshot()).toBe(getEmptySnapshot());
   });
 });
+
+// A browser can reject writes outright (quota exceeded, private modes).
+// Persistence must degrade to best-effort and never throw to callers —
+// TvShell records a play on the play path, so a storage failure there
+// cannot be allowed to preempt the song.
+describe("persistence write failures", () => {
+  it("does not propagate a throwing setItem", () => {
+    const mem = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: () => {
+        throw new Error("quota exceeded");
+      },
+    };
+    expect(() => toggleFavorite(storage, "a")).not.toThrow();
+    expect(() => pushRecent(storage, "a")).not.toThrow();
+    // The read path still works and the rejected writes stored nothing.
+    expect(loadFavorites(storage)).toEqual([]);
+    expect(loadRecent(storage)).toEqual([]);
+    expect(mem.has("kantahub.favorites")).toBe(false);
+  });
+});

@@ -51,9 +51,16 @@ function readIdList(storage: StorageLike, key: string): string[] {
 }
 
 // Stored lists are always the full current state, so writes and reads stay
-// symmetric.
+// symmetric. Writes are best-effort: quota errors or privacy modes that
+// reject setItem must never throw to callers — favorites and recents are
+// conveniences, not load-bearing, and a failed write simply leaves the
+// previous list in place (mirrors the hardened read path).
 function writeIdList(storage: StorageLike, key: string, ids: string[]): void {
-  storage.setItem(key, JSON.stringify(ids));
+  try {
+    storage.setItem(key, JSON.stringify(ids));
+  } catch {
+    // Storage rejected the write; the screen keeps working regardless.
+  }
 }
 
 export function loadFavorites(storage: StorageLike): string[] {
@@ -112,11 +119,17 @@ let favoritesSnapshot: IdListSnapshot = { raw: null, ids: EMPTY_IDS };
 let recentSnapshot: IdListSnapshot = { raw: null, ids: EMPTY_IDS };
 
 function snapshotFor(key: string, cache: IdListSnapshot): IdListSnapshot {
-  const raw = defaultStorage().getItem(key);
-  if (cache.raw !== raw) {
-    return { raw, ids: readIdList(defaultStorage(), key) };
+  try {
+    const raw = defaultStorage().getItem(key);
+    if (cache.raw !== raw) {
+      return { raw, ids: readIdList(defaultStorage(), key) };
+    }
+    return cache;
+  } catch {
+    // Storage failed mid-read (this runs during render, so it must never
+    // throw): keep the last known good snapshot instead.
+    return cache;
   }
-  return cache;
 }
 
 export function getFavoritesSnapshot(): string[] {

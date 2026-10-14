@@ -27,16 +27,20 @@ export function Transport({
   onStop,
   onNext,
 }: TransportProps) {
+  // Fixed action ids serve as React keys: the Play/Pause label and aria
+  // change with isPlaying, so keying by either would remount the focused
+  // button and drop DOM focus on every toggle.
   const buttons = [
-    { label: "⏮ Restart", aria: "Restart song from the beginning", onClick: onPrev, disabled: !hasSong },
+    { id: "restart", label: "⏮ Restart", aria: "Restart song from the beginning", onClick: onPrev, disabled: !hasSong },
     {
+      id: "playpause",
       label: isPlaying ? "⏸ Pause" : "▶ Play",
       aria: isPlaying ? "Pause" : "Play",
       onClick: onPlayPause,
       disabled: !isPlaying && !hasSong,
     },
-    { label: "⏹ Stop", aria: "Stop", onClick: onStop, disabled: !hasSong },
-    { label: "⏭ Next", aria: "Play next song in queue", onClick: onNext, disabled: !hasNext },
+    { id: "stop", label: "⏹ Stop", aria: "Stop", onClick: onStop, disabled: !hasSong },
+    { id: "next", label: "⏭ Next", aria: "Play next song in queue", onClick: onNext, disabled: !hasNext },
   ];
 
   const firstEnabled = buttons.findIndex((b) => !b.disabled);
@@ -81,7 +85,7 @@ export function Transport({
       <div role="toolbar" aria-label="Playback" style={{ display: "flex", gap: "1vw" }}>
         {buttons.map((btn, i) => (
           <button
-            key={btn.aria}
+            key={btn.id}
             ref={(el) => {
               refs.current[i] = el;
             }}

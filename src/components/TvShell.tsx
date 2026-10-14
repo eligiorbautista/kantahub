@@ -21,7 +21,9 @@ import {
 } from "@/lib/persistence";
 import { filterSongs } from "@/lib/search";
 import type { SongMeta } from "@/lib/scanner";
+import type { RemoteState } from "@/lib/remoteStore";
 import { usePlayer } from "@/components/PlayerProvider";
+import { QrPanel } from "@/components/QrPanel";
 import { BackgroundMedia } from "@/components/BackgroundMedia";
 import { Favorites, RecentlyPlayed } from "@/components/Favorites";
 import LyricsView from "@/components/LyricsView";
@@ -90,7 +92,15 @@ async function loadLyricLines(id: string): Promise<LyricLine[]> {
   }
 }
 
-export function TvShell() {
+export function TvShell({
+  remoteSession,
+  remoteUrl,
+}: {
+  /** Session id for phone pairing (generated per page load on the server). */
+  remoteSession: string;
+  /** Full LAN URL encoded in the QR code (`buildRemoteUrl(session)`). */
+  remoteUrl: string;
+}) {
   const { state, store, engine, unlockAudio } = usePlayer();
   const [songs, setSongs] = useState<SongMeta[]>([]);
   const [libraryError, setLibraryError] = useState<string | null>(null);
@@ -160,6 +170,63 @@ export function TvShell() {
     pendingRef.current = null;
     store.playSong(id);
   }, [engine, store]);
+
+  // The SSE subscription below is bound once per session, so the handler
+  // reads the moving pieces (library, playback state, playNow) via refs.
+  const songsRef = useRef(songs);
+  const playNowRef = useRef(playNow);
+  const playbackRef = useRef({ currentId: state.currentId, isPlaying: state.isPlaying });
+  useEffect(() => {
+    songsRef.current = songs;
+  }, [songs]);
+  useEffect(() => {
+    playNowRef.current = playNow;
+  }, [playNow]);
+  useEffect(() => {
+    playbackRef.current = { currentId: state.currentId, isPlaying: state.isPlaying };
+  }, [state.currentId, state.isPlaying]);
+
+  // Phone-remote bridge (R-session): subscribe to this session's SSE stream
+  // and mirror each pushed state snapshot into local playback — start the
+  // newly pushed song, adopt the remote queue, pause when the phone pauses.
+  useEffect(() => {
+    const es = new EventSource(`/api/remote/${encodeURIComponent(remoteSession)}/events`);
+    // The id the phone last told the TV to play; repeated snapshots
+    // (e.g. an enqueue echoing currentId) must not restart the song.
+    let lastPlayedId: string | null = null;
+    es.addEventListener("message", (event) => {
+      let remote: RemoteState;
+      try {
+        remote = JSON.parse(event.data as string) as RemoteState;
+      } catch (err) {
+        console.error("bad remote state payload:", err);
+        return;
+      }
+      const byId = new Map(songsRef.current.map((s) => [s.id, s]));
+      setQueue(
+        remote.queue
+          .map((id) => byId.get(id))
+          .filter((s): s is SongMeta => s !== undefined),
+      );
+      if (remote.currentId && remote.currentId !== lastPlayedId) {
+        const song = byId.get(remote.currentId);
+        if (song) {
+          lastPlayedId = remote.currentId;
+          playNowRef.current(song);
+        }
+      }
+      const playback = playbackRef.current;
+      if (
+        !remote.isPlaying &&
+        remote.currentId !== null &&
+        remote.currentId === playback.currentId &&
+        playback.isPlaying
+      ) {
+        store.pause();
+      }
+    });
+    return () => es.close();
+  }, [remoteSession, store]);
 
   // Extract lyrics whenever the store starts a (different) song.
   useEffect(() => {
@@ -240,6 +307,7 @@ export function TvShell() {
         }}
       >
         <h1 style={{ fontSize: "2.2vw", fontWeight: 800, margin: 0 }}>{branding.name}</h1>
+        <QrPanel url={remoteUrl} />
         <p style={{ fontSize: "1.1vw", opacity: 0.7, margin: 0 }}>
           {songs.length} songs{query ? ` — ${visible.length} matching` : ""}
         </p>

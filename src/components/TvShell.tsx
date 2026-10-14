@@ -25,6 +25,7 @@ import type { SongMeta } from "@/lib/scanner";
 import type { RemoteState } from "@/lib/remoteStore";
 import { usePlayer } from "@/components/PlayerProvider";
 import { AutoAdvanceOverlay } from "@/components/AutoAdvanceOverlay";
+import { Score } from "@/components/Score";
 import { QrPanel } from "@/components/QrPanel";
 import { BackgroundMedia } from "@/components/BackgroundMedia";
 import { Favorites, RecentlyPlayed } from "@/components/Favorites";
@@ -129,6 +130,10 @@ export function TvShell({
   // derived state updated by the countdown ticker below.
   const [autoAdvanceAt, setAutoAdvanceAt] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(AUTO_ADVANCE_SECONDS);
+  // Cosmetic fun score (Task 18, R-nomic): the id of the song that just
+  // ended, or null before any song has ended. Set on the same `songEnd`
+  // signal as the countdown; it drives the bottom Score band.
+  const [endedId, setEndedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -308,6 +313,17 @@ export function TvShell({
     setAutoAdvanceAt(Date.now() + AUTO_ADVANCE_SECONDS * 1000);
   }, [state.songEndCount]);
 
+  // Cosmetic fun score (Task 18): raise the bottom Score band on every
+  // natural song end. `endedId` is the roll key, so the score is drawn
+  // exactly once per ended song even while the countdown ticks. Visibility is
+  // derived (not cleared in an effect): the band is up only while the ended
+  // song is still the current one and nothing is playing, and goes away as
+  // soon as a resume/replay/next takes over or the user stops (R-tv).
+  useEffect(() => {
+    if (state.songEndCount === 0) return;
+    setEndedId(playbackRef.current.currentId);
+  }, [state.songEndCount]);
+
   // Ticker: derive the visible seconds and fire the advance at zero. The
   // deadline is wall-clock, so a throttled tab fires late but never early.
   useEffect(() => {
@@ -368,6 +384,11 @@ export function TvShell({
   const autoNextId =
     autoAdvanceAt !== null ? nextAfter(state.currentId, queue.map((s) => s.id)) : null;
   const autoNext = autoNextId !== null ? songsById.get(autoNextId) : undefined;
+  // The fun-score band is up only on the end screen: a song has ended
+  // (`endedId` set) and playback has not resumed/advanced/stopped underneath
+  // it. Deriving this instead of clearing in an effect keeps the roll stable
+  // for the whole end screen.
+  const showScore = endedId !== null && !state.isPlaying && state.currentId === endedId;
 
   return (
     <main
@@ -452,6 +473,7 @@ export function TvShell({
               onCancel={cancelAutoAdvance}
             />
           )}
+          {showScore && endedId !== null && <Score endedId={endedId} />}
         </section>
 
         <section aria-label="Queue" style={{ width: "20vw", minHeight: 0, overflowY: "auto" }}>

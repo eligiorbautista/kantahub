@@ -16,6 +16,7 @@ import {
   type PlayerState,
   type PlayerStore,
 } from "@/lib/playerCore";
+import { releaseWakeLock, requestWakeLock } from "@/lib/wakeLock";
 
 export interface PlayerContextValue {
   state: PlayerState;
@@ -39,6 +40,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // Bridge store changes (incl. engine lyric/time/songEnd events) into React state.
     return store.subscribe(setState);
   }, [store]);
+
+  // Keep the TV awake while a song plays (Screen Wake Lock API): acquire on
+  // play, release on pause/stop/unmount. No-ops silently where unsupported.
+  useEffect(() => {
+    if (!state.isPlaying) return;
+    void requestWakeLock(navigator);
+    // Browsers revoke the lock whenever the page is hidden (screensaver
+    // overlays, input hops); take it back once we are visible mid-song.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void requestWakeLock(navigator);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      void releaseWakeLock();
+    };
+  }, [state.isPlaying]);
 
   const unlockAudio = useCallback(() => {
     store.unlockAudio();

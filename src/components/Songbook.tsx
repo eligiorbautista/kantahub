@@ -157,18 +157,7 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, performing = fa
               boxSizing: "border-box",
             }}
           />
-          <ul
-            style={{
-              listStyle: "none",
-              margin: 0,
-              padding: 0,
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "1.2vh 2vw",
-              overflowY: "auto",
-              flex: 1,
-            }}
-          >
+          <ul className="songbook-list">
             {items.map((song) => {
               const inQueue = queuedIds.has(song.id);
               return (
@@ -229,7 +218,7 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, performing = fa
               {selected.number ? `#${selected.number} · ` : ""}
               {selected.artist || "Unknown artist"}
             </p>
-            <div style={{ display: "flex", gap: "1.2vw", flexWrap: "wrap", marginTop: "1vh" }}>
+            <div style={menuActions}>
               <button type="button" data-focusable="true" onClick={() => void add(selected)} style={actionStyle("#3b82f6")}>
                 Add to queue
               </button>
@@ -265,7 +254,7 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, performing = fa
             <p style={{ margin: 0, opacity: 0.8, fontSize: "2.4vh" }}>
               “{confirmPlay.title}” will start after the countdown, and the song on stage will stop.
             </p>
-            <div style={{ display: "flex", gap: "1.2vw", flexWrap: "wrap", marginTop: "1vh" }}>
+            <div style={menuActions}>
               <button
                 type="button"
                 data-focusable="true"
@@ -369,22 +358,32 @@ const menuStyle: CSSProperties = {
   background: "#111827",
   border: "0.2vh solid rgba(255,255,255,0.18)",
   borderRadius: "1.6vh",
-  padding: "3vh 4vh",
+  padding: "3vh 3.4vh",
   display: "flex",
   flexDirection: "column",
   gap: "1.2vh",
-  maxWidth: "min(80vw, 60ch)",
+  width: "min(92vw, 56rem)",
+  maxWidth: "92vw",
+};
+
+const menuActions: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(8.5rem, 1fr))",
+  gap: "1.2vh",
+  marginTop: "1.4vh",
 };
 
 const actionStyle = (bg: string): CSSProperties => ({
-  fontSize: "2.6vh",
+  fontSize: "2.2vh",
   fontWeight: 700,
-  padding: "1.4vh 3vh",
+  padding: "1.2vh 1.6vh",
   borderRadius: "1vh",
   border: "none",
   background: bg,
   color: "#fff",
   cursor: "pointer",
+  width: "100%",
+  whiteSpace: "nowrap",
 });
 
 export default Songbook;

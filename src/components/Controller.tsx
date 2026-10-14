@@ -109,7 +109,7 @@ export function Controller() {
   const playNow = useCallback(
     (song: SongMeta) => {
       remember(song);
-      void send({ kind: "play", songId: song.id, singer: singer.trim(), countdownSec: 5 });
+      void send({ kind: "play", songId: song.id, singer: singer.trim() });
       setFeedback("Now playing");
     },
     [send, singer, remember],
@@ -134,20 +134,15 @@ export function Controller() {
 
   return (
     <main
+      className="ctl"
       style={{
-        minHeight: "100dvh",
+        flex: 1,
         background: "#0b0b12",
         color: "#fafafa",
-        padding: "1.6rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "1.4rem",
-        maxWidth: "60rem",
-        margin: "0 auto",
         boxSizing: "border-box",
       }}
     >
-      <header style={{ display: "flex", alignItems: "center", gap: "0.8rem", flexWrap: "wrap" }}>
+      <header className="ctl-header" style={{ display: "flex", alignItems: "center", gap: "0.8rem", flexWrap: "wrap" }}>
         <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800 }}>{branding.name}</h1>
         <span
           title={connected ? "Connected" : "Reconnecting…"}
@@ -168,7 +163,7 @@ export function Controller() {
       </header>
 
       {/* Now playing + transport */}
-      <section style={card}>
+      <section className="ctl-now" style={card}>
         <p style={{ margin: 0, fontSize: "0.8rem", letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.6 }}>
           Now Singing
         </p>
@@ -193,7 +188,7 @@ export function Controller() {
             {room?.isPlaying ? <PauseIcon size={20} /> : <PlayIcon size={20} />}
             {room?.isPlaying ? "Pause" : "Play"}
           </button>
-          <button type="button" onClick={() => void send({ kind: "next", countdownSec: 5 })} style={btn} aria-label="Next">
+          <button type="button" onClick={() => void send({ kind: "next" })} style={btn} aria-label="Next">
             <NextIcon size={20} /> Next
           </button>
           <button type="button" onClick={() => void send({ kind: "stop" })} style={btn} aria-label="Stop">
@@ -215,7 +210,7 @@ export function Controller() {
       </section>
 
       {/* Singer + add songs */}
-      <section style={card}>
+      <section className="ctl-search" style={card}>
         <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
           <span style={{ fontSize: "0.85rem", opacity: 0.7 }}>Singer (for the next song you add)</span>
           <input
@@ -269,18 +264,19 @@ export function Controller() {
           </p>
         )}
 
-        <ul style={{ listStyle: "none", margin: "0.8rem 0 0", padding: 0, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+        <ul
+          className="ctl-scroll"
+          style={{ listStyle: "none", margin: "0.8rem 0 0", padding: 0, display: "flex", flexDirection: "column", gap: "0.4rem" }}
+        >
           {results.map((song) => {
             const inQueue = queuedIds.has(song.id);
             return (
               <li key={song.id}>
-                <div style={row}>
+                <div className="ctl-row">
                   <span style={{ opacity: 0.55, minWidth: "4.5ch", textAlign: "right", fontSize: "0.85rem" }}>
                     {song.number ?? "—"}
                   </span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {songLabel(song)}
-                  </span>
+                  <span className="ctl-title">{songLabel(song)}</span>
                   {inQueue && <span style={{ color: "#4ade80", fontSize: "0.8rem" }}>In queue</span>}
                   <button type="button" onClick={() => void addSong(song)} style={btnSmall}>
                     Add
@@ -321,19 +317,22 @@ export function Controller() {
       </section>
 
       {/* Queue */}
-      <section style={card}>
+      <section className="ctl-queue" style={card}>
         <h2 style={{ margin: "0 0 0.6rem", fontSize: "1.1rem" }}>
           Queue ({room?.queue.length ?? 0})
         </h2>
         {(room?.queue.length ?? 0) === 0 ? (
           <p style={{ opacity: 0.6, margin: 0 }}>The queue is empty.</p>
         ) : (
-          <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <ol
+            className="ctl-scroll"
+            style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}
+          >
             {room!.queue.map((entry, i) => {
               const song = songsById.get(entry.songId);
               return (
                 <li key={`${entry.songId}-${i}`}>
-                  <div style={row}>
+                  <div className="ctl-row">
                     <span style={{ opacity: 0.6, minWidth: "2ch", textAlign: "right" }}>{i + 1}</span>
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -361,7 +360,7 @@ export function Controller() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => void send({ kind: "play", songId: entry.songId, singer: entry.singer, countdownSec: 5 })}
+                      onClick={() => void send({ kind: "play", songId: entry.songId, singer: entry.singer })}
                       style={btnSmallAlt}
                     >
                       Play
@@ -417,15 +416,6 @@ const input: CSSProperties = {
   fontSize: "1rem",
   width: "100%",
   boxSizing: "border-box",
-};
-
-const row: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "0.6rem",
-  background: "rgba(255,255,255,0.04)",
-  borderRadius: "0.5rem",
-  padding: "0.5rem 0.7rem",
 };
 
 const btn: CSSProperties = {

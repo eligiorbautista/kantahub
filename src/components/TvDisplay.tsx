@@ -36,8 +36,6 @@ import {
   FullscreenIcon,
 } from "@/components/Icons";
 
-const COUNTDOWN_SECONDS = 5;
-
 type Overlay = "none" | "songbook" | "number" | "queue";
 
 export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
@@ -63,8 +61,10 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   }, []);
 
   const pendingRef = useRef<string | null>(null);
-  const endedIdRef = useRef<string | null>(null);
-  const playerIdRef = useRef<string | null>(null);
+  // Timestamp of the last natural song end: the room stays "playing" for a
+  // moment while the next/stop command is in flight, so the resume below is
+  // suppressed only briefly (never permanently).
+  const endedAtRef = useRef<number | null>(null);
   const posRef = useRef(0);
   const lastSeekRef = useRef<number | null>(null);
   const countdownFiredRef = useRef<number | null>(null);
@@ -88,6 +88,29 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
       window.removeEventListener("keydown", once);
     };
   }, [unlockAudio]);
+
+  // Refreshing or closing the TV page means the player is gone, so tell the
+  // room to stop: every device returns to the idle state instead of the song
+  // resuming from the top on the next load.
+  useEffect(() => {
+    const stopNow = () => {
+      try {
+        const body = JSON.stringify({ kind: "stop" });
+        navigator.sendBeacon?.(
+          `/api/remote/${encodeURIComponent(ROOM_ID)}/command`,
+          new Blob([body], { type: "application/json" }),
+        );
+      } catch {
+        // Best effort; a missed beacon just leaves the room as it was.
+      }
+    };
+    window.addEventListener("pagehide", stopNow);
+    window.addEventListener("beforeunload", stopNow);
+    return () => {
+      window.removeEventListener("pagehide", stopNow);
+      window.removeEventListener("beforeunload", stopNow);
+    };
+  }, []);
 
   // A selection parked while the engine was still booting is replayed here.
   useEffect(() => {
@@ -118,17 +141,22 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
       return;
     }
     if (wantPlaying && !player.isPlaying) {
-      // A natural song end leaves the room momentarily "playing"; do not resume.
-      if (endedIdRef.current === player.currentId) return;
+      // A song that just ended leaves the room "playing" for a moment while the
+      // next/stop command is in flight. Suppress the resume only for that short
+      // window, then recover by (re)starting the song, so the TV can never get
+      // stuck showing "paused" while the room says it is playing.
+      const endedAt = endedAtRef.current;
+      if (endedAt !== null && Date.now() - endedAt < 2000) return;
       unlockAudio();
-      engine?.play();
+      if (engine) store.playSong(rid);
+      else pendingRef.current = rid;
     } else if (!wantPlaying && player.isPlaying) {
       store.pause();
     }
   }, [room, player.currentId, player.isPlaying, engine, store, unlockAudio]);
 
   useEffect(() => {
-    endedIdRef.current = null;
+    endedAtRef.current = null;
   }, [room?.currentId]);
 
   // --- Server-authoritative countdown → start playback at zero -----------
@@ -170,8 +198,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   // --- Report our position so controllers can show progress --------------
   useEffect(() => {
     posRef.current = player.positionSec;
-    playerIdRef.current = player.currentId;
-  }, [player.positionSec, player.currentId]);
+  }, [player.positionSec]);
   useEffect(() => {
     if (!player.isPlaying) return;
     const timer = window.setInterval(() => {
@@ -183,9 +210,9 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   // --- Natural song end → advance (with countdown) or stop ---------------
   useEffect(() => {
     if (player.songEndCount === 0) return;
-    endedIdRef.current = playerIdRef.current;
+    endedAtRef.current = Date.now();
     const queue = roomRef.current?.queue ?? [];
-    if (queue.length > 0) void send({ kind: "next", countdownSec: COUNTDOWN_SECONDS });
+    if (queue.length > 0) void send({ kind: "next" });
     else void send({ kind: "stop" });
   }, [player.songEndCount, send]);
 
@@ -245,11 +272,6 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     };
   }, [revealControls]);
 
-  const secondsLeft =
-    room?.countdownEndsAt != null
-      ? Math.max(0, Math.ceil((room.countdownEndsAt - (nowTick + clockOffset)) / 1000))
-      : 0;
-
   const currentSong = room?.currentId ? songsById.get(room.currentId) : undefined;
   const currentTitle = currentSong?.title ?? "";
   const currentArtist = currentSong?.artist ?? "";
@@ -284,7 +306,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     (song: SongMeta) => {
       setSongsById((prev) => new Map(prev).set(song.id, song));
       unlockAudio();
-      void send({ kind: "play", songId: song.id, countdownSec: COUNTDOWN_SECONDS });
+      void send({ kind: "play", songId: song.id });
       setOverlay("none");
       showFeedback("Now playing");
     },
@@ -323,7 +345,6 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [overlay]);
 
-  const showCountdown = room?.phase === "countdown";
   const controlsVisible = overlay === "none" && (!player.isPlaying || nowTick < controlsUntil);
 
   return (
@@ -365,7 +386,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
         }}
       >
         {/* --- Top overlay: now singing + up next + room code --- */}
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "3vw" }}>
+        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "3vw", flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
             {room?.currentId ? (
               <>
@@ -436,27 +457,6 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
                 or open the controller on any phone on this network
               </p>
             </div>
-          ) : showCountdown ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "2.4vh",
-                width: "100%",
-              }}
-            >
-              <p
-                data-testid="countdown-line"
-                aria-live="polite"
-                style={{ margin: 0, fontSize: "3.2vh", fontWeight: 700, textShadow: "0 0.3vh 1vh rgba(0,0,0,0.9)" }}
-              >
-                {room?.currentSinger ? `Get ready, ${room.currentSinger}!` : "Get ready!"} Starting in{" "}
-                <span style={{ color: "#fbbf24", fontWeight: 900, fontSize: "4.6vh" }}>{secondsLeft}</span>…
-              </p>
-              {/* The lyrics are visible from the start so the singer can read ahead. */}
-              <TvLyrics lines={lines} timeSec={0} />
-            </div>
           ) : (
             <TvLyrics lines={lines} timeSec={effectiveTime} />
           )}
@@ -497,7 +497,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
               <ControlButton label="Restart" onClick={() => void send({ kind: "restart" })} icon={<PrevIcon size="2.6vh" />} />
               <ControlButton
                 label="Next"
-                onClick={() => void send({ kind: "next", countdownSec: COUNTDOWN_SECONDS })}
+                onClick={() => void send({ kind: "next" })}
                 icon={<NextIcon size="2.6vh" />}
               />
               <ControlButton label="Stop" onClick={() => void send({ kind: "stop" })} icon={<StopIcon size="2.6vh" />} />

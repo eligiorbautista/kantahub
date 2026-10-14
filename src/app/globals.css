@@ -50,6 +50,123 @@ input:focus-visible,
   outline-offset: 0.125rem;
 }
 
+/* Controller layout. Mobile-first: one column that stacks, then on tablets and
+   desktops the transport stays on top, song selection sits on the left, and the
+   queue on the right. */
+.ctl {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "header"
+    "now"
+    "search"
+    "queue";
+  align-content: start;
+}
+.ctl-header {
+  grid-area: header;
+}
+.ctl-now {
+  grid-area: now;
+}
+.ctl-search {
+  grid-area: search;
+  min-width: 0;
+}
+.ctl-queue {
+  grid-area: queue;
+  min-width: 0;
+}
+
+/* Medium phones and small tablets. */
+@media (min-width: 40rem) {
+  .ctl {
+    max-width: 52rem;
+    padding: 1.4rem;
+    gap: 1.2rem;
+  }
+}
+
+/* Tablets in landscape and desktops: two columns. */
+@media (min-width: 62rem) {
+  .ctl {
+    max-width: 86rem;
+    grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
+    grid-template-areas:
+      "header header"
+      "now    now"
+      "search queue";
+    /* Stretch so the song-selection and queue cards share one height. */
+    align-items: stretch;
+  }
+  .ctl-search,
+  .ctl-queue {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 17rem);
+  }
+  /* The scroll happens inside the card, so the card's own padding stays visible
+     (content never touches the card edge while scrolling). */
+  .ctl-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding-right: 0.35rem;
+  }
+}
+
+/* Large desktop / TV-sized browser windows. */
+@media (min-width: 100rem) {
+  .ctl {
+    max-width: 110rem;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+/* A single result / queue row: keeps the title shrinkable on narrow phones. */
+.ctl-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.7rem;
+}
+.ctl-row > .ctl-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctl-row > button {
+  flex: none;
+}
+
+/* Songbook results: one column on phones, two on tablets and up. */
+.songbook-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.8rem;
+  overflow-y: auto;
+  flex: 1;
+}
+@media (min-width: 48rem) {
+  .songbook-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.2vh 2vw;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;

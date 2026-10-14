@@ -1,10 +1,11 @@
 "use client";
 
-// Scrollable song list for the TV. Every row carries two buttons — Play
-// (the row itself) and "+ Queue" — both reachable with arrow keys and
-// activated with Enter (native button behavior); no hover-only affordances.
-// ArrowUp/ArrowDown move between rows (roving tabIndex), ArrowRight enters
-// the row's queue action, ArrowLeft returns to the row.
+// Scrollable song list for the TV. Every row carries three buttons — Play
+// (the row itself), "+ Fav", and "+ Queue" — all reachable with arrow keys
+// and activated with Enter (native button behavior); no hover-only
+// affordances. ArrowUp/ArrowDown move between rows (roving tabIndex),
+// ArrowRight steps through the row's actions Play → Fav → Queue, and
+// ArrowLeft walks back toward the row.
 import { useRef, useState } from "react";
 import type { SongMeta } from "@/lib/scanner";
 
@@ -12,6 +13,8 @@ export interface SongGridProps {
   songs: SongMeta[];
   onPlay: (song: SongMeta) => void;
   onQueue: (song: SongMeta) => void;
+  onToggleFavorite: (song: SongMeta) => void;
+  isFavorite: (songId: string) => boolean;
 }
 
 // A full local library can hold tens of thousands of files; rendering every
@@ -36,6 +39,20 @@ const rowButtonStyle = (active: boolean): React.CSSProperties => ({
   whiteSpace: "nowrap",
 });
 
+// Favorites stand out filled; pressing (or focusing) the button inverts
+// the colors exactly like the active row does.
+const favButtonStyle = (active: boolean, favorited: boolean): React.CSSProperties => ({
+  flexShrink: 0,
+  padding: "1.1vh 0.8vw",
+  fontSize: "1.2vw",
+  fontWeight: 700,
+  color: active ? "#0b0b12" : favorited ? "#0b0b12" : "#f7c948",
+  background: active ? "#f7c948" : favorited ? "#f7c948" : "transparent",
+  border: "2px solid #f7c948",
+  borderRadius: "0.5vw",
+  cursor: "pointer",
+});
+
 const queueButtonStyle = (active: boolean): React.CSSProperties => ({
   flexShrink: 0,
   padding: "1.1vh 0.8vw",
@@ -48,11 +65,12 @@ const queueButtonStyle = (active: boolean): React.CSSProperties => ({
   cursor: "pointer",
 });
 
-export function SongGrid({ songs, onPlay, onQueue }: SongGridProps) {
+export function SongGrid({ songs, onPlay, onQueue, onToggleFavorite, isFavorite }: SongGridProps) {
   const rows = songs.slice(0, MAX_ROWS);
   const [rawFocusIdx, setFocusIdx] = useState(0);
   const focusIdx = Math.min(rawFocusIdx, Math.max(rows.length - 1, 0));
   const rowRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const favRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const queueRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const focusRow = (i: number) => {
@@ -72,6 +90,7 @@ export function SongGrid({ songs, onPlay, onQueue }: SongGridProps) {
         <ul role="listbox" aria-label="Songs" style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "0.4vh" }}>
           {rows.map((song, i) => {
             const active = i === focusIdx;
+            const favorite = isFavorite(song.id);
             return (
               <li key={song.id} role="option" aria-selected={active} style={{ display: "flex", alignItems: "center", gap: "0.6vw", padding: "0 0.4vw" }}>
                 <button
@@ -91,7 +110,7 @@ export function SongGrid({ songs, onPlay, onQueue }: SongGridProps) {
                       focusRow(i - 1);
                     } else if (e.key === "ArrowRight") {
                       e.preventDefault();
-                      queueRefs.current[i]?.focus();
+                      favRefs.current[i]?.focus();
                     }
                   }}
                   style={rowButtonStyle(active)}
@@ -100,6 +119,33 @@ export function SongGrid({ songs, onPlay, onQueue }: SongGridProps) {
                   {song.artist ? (
                     <span style={{ fontWeight: 400, opacity: 0.75 }}> — {song.artist}</span>
                   ) : null}
+                </button>
+                <button
+                  ref={(el) => {
+                    favRefs.current[i] = el;
+                  }}
+                  type="button"
+                  tabIndex={-1}
+                  aria-label={favorite ? `Unfavorite ${song.title}` : `Favorite ${song.title}`}
+                  onClick={() => onToggleFavorite(song)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      rowRefs.current[i]?.focus();
+                    } else if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      queueRefs.current[i]?.focus();
+                    } else if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      focusRow(i + 1);
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      focusRow(i - 1);
+                    }
+                  }}
+                  style={favButtonStyle(active, favorite)}
+                >
+                  {favorite ? "♥ Fav" : "♡ Fav"}
                 </button>
                 <button
                   ref={(el) => {
@@ -112,7 +158,7 @@ export function SongGrid({ songs, onPlay, onQueue }: SongGridProps) {
                   onKeyDown={(e) => {
                     if (e.key === "ArrowLeft") {
                       e.preventDefault();
-                      rowRefs.current[i]?.focus();
+                      favRefs.current[i]?.focus();
                     } else if (e.key === "ArrowDown") {
                       e.preventDefault();
                       focusRow(i + 1);

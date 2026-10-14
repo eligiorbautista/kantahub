@@ -1,17 +1,28 @@
 "use client";
 
-// TV home shell: brand header, search + song grid, lyric stage, queue, and
-// transport. Selecting a song unlocks audio (a click/Enter is a valid
-// gesture), plays it through the store (which owns playback state and the
-// engine), and extracts the embedded lyrics from the streamed file so
+// TV home shell: brand header, favorites and recently played rows, search +
+// song grid, lyric stage, queue, and transport. Selecting a song unlocks
+// audio (a click/Enter is a valid gesture), plays it through the store
+// (which owns playback state and the engine), records the play in local
+// storage, and extracts the embedded lyrics from the streamed file so
 // LyricsView can highlight lines in time.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { branding } from "@/lib/branding";
 import { extractLyrics, type LyricLine } from "@/lib/lyrics";
 import { walkMidiTracks } from "@/lib/midiMeta";
+import {
+  defaultStorage,
+  getEmptySnapshot,
+  getFavoritesSnapshot,
+  getRecentSnapshot,
+  pushRecent,
+  subscribeSongLists,
+  toggleFavorite,
+} from "@/lib/persistence";
 import { filterSongs } from "@/lib/search";
 import type { SongMeta } from "@/lib/scanner";
 import { usePlayer } from "@/components/PlayerProvider";
+import { Favorites, RecentlyPlayed } from "@/components/Favorites";
 import LyricsView from "@/components/LyricsView";
 import { SearchBar } from "@/components/SearchBar";
 import { SongGrid } from "@/components/SongGrid";
@@ -84,6 +95,12 @@ export function TvShell() {
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [queue, setQueue] = useState<SongMeta[]>([]);
+  // localStorage is the source of truth for favorites and recents; the
+  // external-store subscription re-renders on every persist. Rows resolve
+  // the ids against the loaded library, so ids from a library that has
+  // since changed simply drop out.
+  const favoriteIds = useSyncExternalStore(subscribeSongLists, getFavoritesSnapshot, getEmptySnapshot);
+  const recentIds = useSyncExternalStore(subscribeSongLists, getRecentSnapshot, getEmptySnapshot);
   // Lyrics are keyed by song id so a stale response never clobbers the
   // newly selected song's display.
   const [lyricState, setLyricState] = useState<{ id: string | null; lines: LyricLine[] }>({
@@ -112,9 +129,23 @@ export function TvShell() {
     };
   }, []);
 
+  // Favorites toggle against the store itself (the source of truth) so
+  // rapid double activations still end in the correct stored state.
+  const toggleFavoriteById = useCallback((song: SongMeta) => {
+    toggleFavorite(defaultStorage(), song.id);
+  }, []);
+
+  const isFavorite = useCallback(
+    (songId: string) => favoriteIds.includes(songId),
+    [favoriteIds],
+  );
+
   const playNow = useCallback(
     (song: SongMeta) => {
       unlockAudio();
+      // Record the play at selection time so even a booting engine still
+      // counts it; a replay just moves the song back to the front.
+      pushRecent(defaultStorage(), song.id);
       if (engine) store.playSong(song.id);
       else pendingRef.current = song.id;
     },
@@ -172,6 +203,16 @@ export function TvShell() {
   }, [unlockAudio, state.isPlaying, store, engine]);
 
   const visible = filterSongs(songs, query);
+  const songsById = useMemo(() => new Map(songs.map((s) => [s.id, s])), [songs]);
+  const resolveIds = useCallback(
+    (ids: string[]) =>
+      ids
+        .map((id) => songsById.get(id))
+        .filter((song): song is SongMeta => song !== undefined),
+    [songsById],
+  );
+  const favoriteSongs = useMemo(() => resolveIds(favoriteIds), [favoriteIds, resolveIds]);
+  const recentSongs = useMemo(() => resolveIds(recentIds), [recentIds, resolveIds]);
   const lines = lyricState.id === state.currentId ? lyricState.lines : [];
   const current = songs.find((s) => s.id === state.currentId);
   const currentTitle = current
@@ -202,6 +243,16 @@ export function TvShell() {
         </p>
       </header>
 
+      {(favoriteSongs.length > 0 || recentSongs.length > 0) && (
+        <section
+          aria-label="Favorites and recently played"
+          style={{ padding: "0.9vh 3vw 0", display: "flex", flexDirection: "column", gap: "1vh" }}
+        >
+          <Favorites songs={favoriteSongs} onPlay={playNow} />
+          <RecentlyPlayed songs={recentSongs} onPlay={playNow} />
+        </section>
+      )}
+
       <div
         style={{
           flex: 1,
@@ -221,7 +272,13 @@ export function TvShell() {
               {libraryError}
             </p>
           )}
-          <SongGrid songs={visible} onPlay={playNow} onQueue={enqueue} />
+          <SongGrid
+            songs={visible}
+            onPlay={playNow}
+            onQueue={enqueue}
+            onToggleFavorite={toggleFavoriteById}
+            isFavorite={isFavorite}
+          />
         </section>
 
         <section

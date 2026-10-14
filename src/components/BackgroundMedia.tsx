@@ -1,11 +1,16 @@
 "use client";
 
-// Background layer for the lyric stage: cycles the images on the /media
-// volume as a slow slideshow, or plays the first video there as a
-// looping muted BGV (video wins when both exist — a chosen BGV beats
-// stills). Renders absolutely nothing while the volume is missing, empty,
-// or the listing request fails, and never intercepts pointer events from
-// the UI above it.
+// Background layer for the TV stage: plays the first video on the /media
+// volume as a looping muted BGV (a chosen BGV beats stills), or cycles the
+// images there as a slow slideshow. Renders absolutely nothing while the
+// volume is missing, empty, or the listing request fails, and never
+// intercepts pointer events from the UI above it.
+//
+// Autoplay is best-effort and robust: muted videos are allowed to autoplay, but
+// some TV browsers still require an explicit play() and will reject it until
+// the first user gesture. We therefore retry on load events, on a few early
+// timers, whenever the page becomes visible again, and on the first
+// remote/keyboard/pointer interaction.
 import { useEffect, useRef, useState } from "react";
 import { pickNextIndex, type MediaList } from "@/lib/media";
 
@@ -29,6 +34,7 @@ export function BackgroundMedia({ intervalMs = DEFAULT_INTERVAL_MS }: Background
   // correctly instead of drifting with missed timers.
   const startRef = useRef(0);
   const indexRef = useRef(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +73,47 @@ export function BackgroundMedia({ intervalMs = DEFAULT_INTERVAL_MS }: Background
     return () => window.clearInterval(timer);
   }, [video, images.length, intervalMs]);
 
+  // Robust muted autoplay for the BGV video.
+  useEffect(() => {
+    if (video === undefined) return;
+    const v = videoRef.current;
+    if (!v) return;
+    // Belt and braces: some engines only honour the *attribute* for autoplay.
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute("muted", "");
+
+    const tryPlay = () => {
+      const p = v.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    };
+    tryPlay();
+
+    const loadEvents = ["loadedmetadata", "loadeddata", "canplay", "canplaythrough"];
+    for (const ev of loadEvents) v.addEventListener(ev, tryPlay);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tryPlay();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const onGesture = () => tryPlay();
+    window.addEventListener("pointerdown", onGesture);
+    window.addEventListener("keydown", onGesture);
+    window.addEventListener("touchstart", onGesture);
+
+    // A slow first byte over the LAN can reject the very first play(); retry.
+    const timers = [500, 1500, 3000, 6000].map((ms) => window.setTimeout(tryPlay, ms));
+
+    return () => {
+      for (const ev of loadEvents) v.removeEventListener(ev, tryPlay);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
+      window.removeEventListener("touchstart", onGesture);
+      for (const t of timers) window.clearTimeout(t);
+    };
+  }, [video]);
+
   if (!media || (images.length === 0 && video === undefined)) return null;
 
   return (
@@ -82,19 +129,21 @@ export function BackgroundMedia({ intervalMs = DEFAULT_INTERVAL_MS }: Background
         zIndex: 0,
         overflow: "hidden",
         // Purely decorative: the background must never eat clicks, focus,
-        // or D-pad navigation meant for the lyrics above it. The dark tint
-        // keeps the lyric text legible over bright images.
-        background: "rgba(0,0,0,0.35)",
+        // or D-pad navigation meant for the lyrics above it.
+        background: "#000",
         pointerEvents: "none",
       }}
     >
       {video !== undefined ? (
         <video
+          ref={videoRef}
           src={mediaFileUrl(video)}
           muted
           loop
           playsInline
           autoPlay
+          preload="auto"
+          disablePictureInPicture
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       ) : (

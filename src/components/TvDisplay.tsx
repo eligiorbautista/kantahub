@@ -20,7 +20,6 @@ import type { SongMeta } from "@/lib/scanner";
 import type { LyricLine } from "@/lib/lyrics";
 import { BackgroundMedia } from "@/components/BackgroundMedia";
 import { TvLyrics } from "@/components/TvLyrics";
-import { CountdownScreen } from "@/components/CountdownScreen";
 import { Songbook } from "@/components/Songbook";
 import { NumberPad } from "@/components/NumberPad";
 import { QrPanel } from "@/components/QrPanel";
@@ -34,8 +33,6 @@ import {
   BookIcon,
   MusicIcon,
   CloseIcon,
-  FlatIcon,
-  SharpIcon,
   FullscreenIcon,
 } from "@/components/Icons";
 
@@ -351,7 +348,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
           zIndex: 1,
           pointerEvents: "none",
           background:
-            "linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 30%, rgba(0,0,0,0.18) 55%, rgba(0,0,0,0.82) 100%)",
+            "linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.06) 26%, rgba(0,0,0,0.06) 58%, rgba(0,0,0,0.7) 100%)",
         }}
       />
 
@@ -427,13 +424,39 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
             padding: "2vh 0",
           }}
         >
-          {showCountdown ? (
-            <CountdownScreen
-              secondsLeft={secondsLeft}
-              singer={room?.currentSinger ?? ""}
-              title={currentTitle}
-              artist={currentArtist}
-            />
+          {!room?.currentId ? (
+            <div
+              data-testid="tv-idle"
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2vh", textAlign: "center" }}
+            >
+              <p style={{ margin: 0, fontSize: "4.4vh", fontWeight: 800, textShadow: "0 0.4vh 2vh rgba(0,0,0,0.9)" }}>
+                Scan the QR code to add a song
+              </p>
+              <p style={{ margin: 0, fontSize: "2.6vh", opacity: 0.7 }}>
+                or open the controller on any phone on this network
+              </p>
+            </div>
+          ) : showCountdown ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "2.4vh",
+                width: "100%",
+              }}
+            >
+              <p
+                data-testid="countdown-line"
+                aria-live="polite"
+                style={{ margin: 0, fontSize: "3.2vh", fontWeight: 700, textShadow: "0 0.3vh 1vh rgba(0,0,0,0.9)" }}
+              >
+                {room?.currentSinger ? `Get ready, ${room.currentSinger}!` : "Get ready!"} Starting in{" "}
+                <span style={{ color: "#fbbf24", fontWeight: 900, fontSize: "4.6vh" }}>{secondsLeft}</span>…
+              </p>
+              {/* The lyrics are visible from the start so the singer can read ahead. */}
+              <TvLyrics lines={lines} timeSec={0} />
+            </div>
           ) : (
             <TvLyrics lines={lines} timeSec={effectiveTime} />
           )}
@@ -478,16 +501,6 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
                 icon={<NextIcon size="2.6vh" />}
               />
               <ControlButton label="Stop" onClick={() => void send({ kind: "stop" })} icon={<StopIcon size="2.6vh" />} />
-              <ControlButton
-                label="Lyrics −"
-                onClick={() => void send({ kind: "setLyricOffset", offsetSec: (room?.lyricOffsetSec ?? 0) - 0.5 })}
-                icon={<FlatIcon size="2.6vh" />}
-              />
-              <ControlButton
-                label="Lyrics +"
-                onClick={() => void send({ kind: "setLyricOffset", offsetSec: (room?.lyricOffsetSec ?? 0) + 0.5 })}
-                icon={<SharpIcon size="2.6vh" />}
-              />
               <ControlButton label="Fullscreen" onClick={toggleFullscreen} icon={<FullscreenIcon size="2.6vh" />} />
             </div>
           )}

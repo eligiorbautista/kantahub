@@ -69,6 +69,45 @@ describe("extractLyrics", () => {
     ]);
   });
 
+  it("treats a leading \\r\\n fragment as a line break", () => {
+    const buf = buildKar([
+      { delta: 0, text: "One" },
+      { delta: 96, text: "\r\nTwo" },
+      { delta: 96, text: "\r\nThree" },
+    ]);
+    expect(extractLyrics(buf, (t) => t / 48)).toEqual([
+      { timeSec: 0, text: "One" },
+      { timeSec: 2, text: "Two" },
+      { timeSec: 4, text: "Three" },
+    ]);
+  });
+
+  it("treats a lone leading \\r as a line break", () => {
+    const buf = buildKar([
+      { delta: 0, text: "One" },
+      { delta: 96, text: "\rTwo" },
+    ]);
+    expect(extractLyrics(buf, (t) => t / 48)).toEqual([
+      { timeSec: 0, text: "One" },
+      { timeSec: 2, text: "Two" },
+    ]);
+  });
+
+  it("flushes a line when its final fragment carries a trailing newline", () => {
+    // Soft Karaoke convention: the newline rides on the LAST fragment of a
+    // line, so "lo\n" completes "Hello" instead of starting a new line.
+    const buf = buildKar([
+      { delta: 0, text: "Hel" },
+      { delta: 24, text: "lo\n" },
+      { delta: 24, text: "Wor" },
+      { delta: 24, text: "ld\n" },
+    ]);
+    expect(extractLyrics(buf, (t) => t / 24)).toEqual([
+      { timeSec: 0, text: "Hello" },
+      { timeSec: 2, text: "World" },
+    ]);
+  });
+
   it("drops whitespace-only entries", () => {
     const buf = buildKar([
       { delta: 0, text: "  " },

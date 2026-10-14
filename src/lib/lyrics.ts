@@ -39,12 +39,16 @@ export function rawLyricEvents(buf: Buffer): RawLyric[] {
 // 2 = hard line start (no whitespace separator, used after CR breaks).
 type BreakKind = 0 | 1 | 2;
 
-function chunkLyric(text: string): { breakBefore: BreakKind; body: string } {
+function chunkLyric(text: string): { breakBefore: BreakKind; body: string; breakAfter: boolean } {
   let breakBefore: BreakKind = 0;
   let i = 0;
-  // Only "/" , "\" and LF lead an event as break markers per KAR convention;
-  // a leading CR alone is a hard break (paragraph separator).
-  if (text.startsWith("\r") && !text.startsWith("\r\n")) {
+  // A leading CR or CRLF is a hard break (paragraph separator, no whitespace
+  // injected); "/", "\" and LF are soft break markers. CRLF is consumed as a
+  // single marker so it produces exactly one break.
+  if (text.startsWith("\r\n")) {
+    breakBefore = 2;
+    i = 2;
+  } else if (text.startsWith("\r")) {
     breakBefore = 2;
     i = 1;
   } else {
@@ -53,10 +57,17 @@ function chunkLyric(text: string): { breakBefore: BreakKind; body: string } {
       i += 1;
     }
   }
-  const endsWithBreak = /[\r\n]$/.test(text);
-  let body = text.slice(i).replace(/[\r\n]/g, " ");
+  // A trailing CR/LF closes the CURRENT line after its body is appended
+  // (Soft Karaoke convention: a line's final fragment carries the newline).
+  let j = text.length;
+  let breakAfter = false;
+  while (j > i && (text[j - 1] === "\n" || text[j - 1] === "\r")) {
+    breakAfter = true;
+    j -= 1;
+  }
+  let body = text.slice(i, j).replace(/[\r\n]/g, " ");
   if (breakBefore === 1 && body.length > 0) body = " " + body;
-  return { breakBefore: endsWithBreak ? 1 : breakBefore, body };
+  return { breakBefore, body, breakAfter };
 }
 
 // Extract embedded lyrics as timed display lines. `ticksToSeconds` converts
@@ -80,19 +91,22 @@ export function extractLyrics(
   };
 
   for (const ev of raw) {
-    const { breakBefore, body } = chunkLyric(ev.text);
+    const { breakBefore, body, breakAfter } = chunkLyric(ev.text);
     if (breakBefore !== 0) {
       flush();
       startTicks = ev.ticks;
       text = body;
-      continue;
-    }
-    if (text.length === 0) {
+    } else if (text.length === 0) {
       // Whitespace-only entries never open a line nor set its start time.
       if (body.trim().length === 0) continue;
       startTicks = ev.ticks;
+      text = body;
+    } else {
+      text += body;
     }
-    text += body;
+    // A trailing break flushes AFTER the body joined the current line, so the
+    // next fragment starts a new line at its own tick.
+    if (breakAfter) flush();
   }
   flush();
   return lines;

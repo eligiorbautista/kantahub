@@ -1,0 +1,34 @@
+# dependencies (reinstalled inside the image)
+node_modules
+
+# build output (built inside the image)
+.next/
+out/
+build/
+
+# version control
+.git
+
+# env files and secrets (never enter the build context)
+.env*
+*.pem
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# typescript build artifacts
+*.tsbuildinfo
+
+# AI tooling artifacts (never ship in images)
+docs/superpowers/
+.superpowers/
+.opencode/
+.claude/
+.cursor/
+.codex/
+.aider*
+
+# misc
+.DS_Store

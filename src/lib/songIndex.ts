@@ -31,7 +31,7 @@ const MISSING = "__missing__";
 // Bump when scanner/index logic changes in a way that alters the emitted
 // SongMeta, so a persisted index built by older code is rebuilt instead of
 // reused. It is part of the staleness signature.
-export const INDEX_VERSION = 2;
+export const INDEX_VERSION = 3;
 
 export function defaultSongsDir(): string {
   return process.env.SONGS_DIR ?? "/songs";

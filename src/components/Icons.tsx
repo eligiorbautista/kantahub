@@ -3,7 +3,7 @@
 // color via currentColor and is sized with the `size` prop (default 1em-ish).
 import type { ReactNode, SVGProps } from "react";
 
-type IconProps = SVGProps<SVGSVGElement> & { size?: number };
+type IconProps = SVGProps<SVGSVGElement> & { size?: number | string };
 
 function Svg({ size = 18, children, ...rest }: IconProps & { children: ReactNode }) {
   return (

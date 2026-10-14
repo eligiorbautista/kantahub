@@ -393,6 +393,7 @@ export function Controller() {
           onAdd={addSong}
           onPlayNow={playNow}
           onClose={() => setSongbookOpen(false)}
+          performing={room?.phase === "countdown" || !!room?.isPlaying}
           feedback={feedback}
         />
       )}

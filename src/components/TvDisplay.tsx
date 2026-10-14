@@ -58,6 +58,13 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [controlsUntil, setControlsUntil] = useState(0);
 
+  const feedbackTimer = useRef<number | null>(null);
+  const showFeedback = useCallback((msg: string | null) => {
+    setFeedback(msg);
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = msg ? window.setTimeout(() => setFeedback(null), 3500) : null;
+  }, []);
+
   const pendingRef = useRef<string | null>(null);
   const endedIdRef = useRef<string | null>(null);
   const playerIdRef = useRef<string | null>(null);
@@ -261,19 +268,19 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const addSong = useCallback(
     async (song: SongMeta) => {
       if (queuedIds.has(song.id)) {
-        setFeedback("Already in queue");
+        showFeedback("Already in queue");
         return "duplicate" as const;
       }
       setSongsById((prev) => new Map(prev).set(song.id, song));
       const next = await send({ kind: "enqueue", songId: song.id });
       if (!next) {
-        setFeedback("Song not found");
+        showFeedback("Song not found");
         return "error" as const;
       }
-      setFeedback("Song added to queue");
+      showFeedback(`Added “${song.title}” to the queue`);
       return "added" as const;
     },
-    [queuedIds, send],
+    [queuedIds, send, showFeedback],
   );
 
   const playNow = useCallback(
@@ -282,9 +289,9 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
       unlockAudio();
       void send({ kind: "play", songId: song.id, countdownSec: COUNTDOWN_SECONDS });
       setOverlay("none");
-      setFeedback("Now playing");
+      showFeedback("Now playing");
     },
-    [send, unlockAudio],
+    [send, unlockAudio, showFeedback],
   );
 
   const submitNumber = useCallback(async () => {
@@ -292,12 +299,14 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     if (!q) return;
     const song = (await findByNumber(q)) ?? (await searchSongs(q, 10, 0)).items[0] ?? null;
     if (!song) {
-      setFeedback("Song not found");
+      showFeedback("Song not found");
       return;
     }
-    await addSong(song);
-    setNumber("");
-  }, [number, addSong]);
+    const result = await addSong(song);
+    if (result === "added") setNumber("");
+    // Auto-close the keypad once a song is in (feedback shows on the stage).
+    setOverlay("none");
+  }, [number, addSong, showFeedback]);
 
   const toggleFullscreen = useCallback(() => {
     const el = document.documentElement;
@@ -509,12 +518,34 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
       </div>
 
       {/* --- Overlays --- */}
+      {feedback && overlay === "none" && (
+        <p
+          role="status"
+          data-testid="tv-toast"
+          style={{
+            position: "fixed",
+            bottom: "12vh",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 60,
+            margin: 0,
+            fontSize: "2.6vh",
+            background: "rgba(0,0,0,0.78)",
+            padding: "1.2vh 2.4vh",
+            borderRadius: "1vh",
+          }}
+        >
+          {feedback}
+        </p>
+      )}
+
       {overlay === "songbook" && (
         <Songbook
           queuedIds={queuedIds}
           onAdd={addSong}
           onPlayNow={playNow}
           onClose={() => setOverlay("none")}
+          performing={room?.phase === "countdown" || !!room?.isPlaying}
           feedback={feedback}
         />
       )}

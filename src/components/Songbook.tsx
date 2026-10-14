@@ -18,13 +18,15 @@ export interface SongbookProps {
   onAdd(song: SongMeta): Promise<"added" | "duplicate" | "error"> | "added" | "duplicate" | "error";
   onPlayNow(song: SongMeta): void;
   onClose(): void;
+  /** True while someone is singing (or about to) — "Play now" then needs a confirm. */
+  performing?: boolean;
   /** Text shown briefly after an add (kept in the parent so it can persist). */
   feedback?: string | null;
 }
 
 type Mode = "search" | "number";
 
-export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, feedback }: SongbookProps) {
+export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, performing = false, feedback }: SongbookProps) {
   const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SongMeta[]>([]);
@@ -32,6 +34,7 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, feedback }: Son
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<SongMeta | null>(null);
+  const [confirmPlay, setConfirmPlay] = useState<SongMeta | null>(null);
   const [number, setNumber] = useState("");
   const [localFeedback, setLocalFeedback] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -234,9 +237,14 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, feedback }: Son
                 type="button"
                 data-focusable="true"
                 onClick={() => {
-                  const s = selected;
-                  setSelected(null);
-                  onPlayNow(s);
+                  if (performing) {
+                    setConfirmPlay(selected);
+                    setSelected(null);
+                  } else {
+                    const s = selected;
+                    setSelected(null);
+                    onPlayNow(s);
+                  }
                 }}
                 style={actionStyle("#ef4444")}
               >
@@ -244,6 +252,34 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, feedback }: Son
               </button>
               <button type="button" data-focusable="true" onClick={() => setSelected(null)} style={actionStyle("#334155")}>
                 Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmPlay && (
+        <div style={menuBackdrop}>
+          <div style={menuStyle}>
+            <h3 style={{ margin: 0, fontSize: "3vh" }}>Interrupt the current song?</h3>
+            <p style={{ margin: 0, opacity: 0.8, fontSize: "2.4vh" }}>
+              “{confirmPlay.title}” will start after the countdown, and the song on stage will stop.
+            </p>
+            <div style={{ display: "flex", gap: "1.2vw", flexWrap: "wrap", marginTop: "1vh" }}>
+              <button
+                type="button"
+                data-focusable="true"
+                onClick={() => {
+                  const s = confirmPlay;
+                  setConfirmPlay(null);
+                  onPlayNow(s);
+                }}
+                style={actionStyle("#ef4444")}
+              >
+                Yes, play now
+              </button>
+              <button type="button" data-focusable="true" onClick={() => setConfirmPlay(null)} style={actionStyle("#334155")}>
+                Cancel
               </button>
             </div>
           </div>

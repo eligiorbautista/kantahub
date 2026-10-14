@@ -21,7 +21,9 @@ interface IndexEntry {
 
 // In-memory cache keyed by resolved absolute songsDir.
 const memory = new Map<string, IndexEntry>();
-// Concurrent cold builds deduplicated per resolved songsDir.
+// Concurrent cold builds deduplicated per resolved songsDir AND per forced
+// mode, so a force:true request never joins (and inherits stale persisted
+// data from) a non-forced in-flight build.
 const building = new Map<string, Promise<SongMeta[]>>();
 
 const MISSING = "__missing__";
@@ -53,7 +55,12 @@ async function signature(dir: string): Promise<string | null> {
     const parts = [`${stat.mtimeMs}:${entries.length}`];
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        parts.push(`${entry.name}:${(await fs.stat(path.join(dir, entry.name))).mtimeMs}`);
+        try {
+          parts.push(`${entry.name}:${(await fs.stat(path.join(dir, entry.name))).mtimeMs}`);
+        } catch {
+          // One unreadable/vanished subdir degrades the signature (this part
+          // is just missing) but must not collapse the whole index to [].
+        }
       }
     }
     return parts.join("|");
@@ -84,7 +91,8 @@ async function persist(file: string, entry: IndexEntry): Promise<void> {
 }
 
 async function build(resolvedDir: string, skipPersisted: boolean): Promise<SongMeta[]> {
-  const inflight = building.get(resolvedDir);
+  const inflightKey = `${resolvedDir}:${skipPersisted ? "force" : "normal"}`;
+  const inflight = building.get(inflightKey);
   if (inflight) return inflight;
   const promise = (async () => {
     const sig = await signature(resolvedDir);
@@ -105,8 +113,8 @@ async function build(resolvedDir: string, skipPersisted: boolean): Promise<SongM
     memory.set(resolvedDir, entry);
     await persist(file, entry);
     return entry.songs;
-  })().finally(() => building.delete(resolvedDir));
-  building.set(resolvedDir, promise);
+  })().finally(() => building.delete(inflightKey));
+  building.set(inflightKey, promise);
   return promise;
 }
 

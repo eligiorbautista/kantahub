@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRoom } from "@/lib/useRoom";
 import { ROOM_CODE, ROOM_ID } from "@/lib/room";
-import { searchSongs, resolveSongs, songLabel } from "@/lib/songsClient";
+import { searchSongs, resolveSongs, findByNumber, songLabel } from "@/lib/songsClient";
 import type { SongMeta } from "@/lib/scanner";
 import { branding } from "@/lib/branding";
 import { Songbook } from "@/components/Songbook";
@@ -118,11 +118,7 @@ export function Controller() {
   const submitNumber = useCallback(async () => {
     const q = numberInput.trim();
     if (!q) return;
-    const page = await searchSongs(q, 10, 0);
-    const exact =
-      page.items.find((s) => s.number === q) ??
-      page.items.find((s) => s.number && s.number.replace(/^0+/, "") === q.replace(/^0+/, ""));
-    const song = exact ?? page.items[0];
+    const song = (await findByNumber(q)) ?? (await searchSongs(q, 10, 0)).items[0] ?? null;
     if (!song) {
       setFeedback("Song not found");
       return;
@@ -308,7 +304,7 @@ export function Controller() {
             onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
             style={page <= 1 ? btnDisabled : btnSmall}
           >
-            ◀ Prev
+            Prev
           </button>
           <span style={{ fontSize: "0.85rem", opacity: 0.7 }}>
             Page {page} / {pageCount} · {total} songs
@@ -319,7 +315,7 @@ export function Controller() {
             onClick={() => setOffset(offset + PAGE_SIZE)}
             style={page >= pageCount ? btnDisabled : btnSmall}
           >
-            Next ▶
+            Next
           </button>
         </div>
       </section>
@@ -352,7 +348,7 @@ export function Controller() {
                       onClick={() => void send({ kind: "reorder", from: i, to: i - 1 })}
                       style={i === 0 ? btnDisabled : btnSmall}
                     >
-                      ▲
+                      Up
                     </button>
                     <button
                       type="button"
@@ -361,7 +357,7 @@ export function Controller() {
                       onClick={() => void send({ kind: "reorder", from: i, to: i + 1 })}
                       style={i === room!.queue.length - 1 ? btnDisabled : btnSmall}
                     >
-                      ▼
+                      Down
                     </button>
                     <button
                       type="button"

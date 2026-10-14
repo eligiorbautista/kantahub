@@ -14,7 +14,7 @@ import { useRoom } from "@/lib/useRoom";
 import { ROOM_CODE, ROOM_ID } from "@/lib/room";
 import { branding } from "@/lib/branding";
 import { loadLyricLines } from "@/lib/lyricLoader";
-import { resolveSongs, searchSongs, songLabel } from "@/lib/songsClient";
+import { resolveSongs, searchSongs, findByNumber, songLabel } from "@/lib/songsClient";
 import { useSpatialNav } from "@/lib/useSpatialNav";
 import type { SongMeta } from "@/lib/scanner";
 import type { LyricLine } from "@/lib/lyrics";
@@ -36,6 +36,7 @@ import {
   CloseIcon,
   FlatIcon,
   SharpIcon,
+  FullscreenIcon,
 } from "@/components/Icons";
 
 const COUNTDOWN_SECONDS = 5;
@@ -289,11 +290,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const submitNumber = useCallback(async () => {
     const q = number.trim();
     if (!q) return;
-    const page = await searchSongs(q, 10, 0);
-    const exact =
-      page.items.find((s) => s.number === q) ??
-      page.items.find((s) => s.number && s.number.replace(/^0+/, "") === q.replace(/^0+/, ""));
-    const song = exact ?? page.items[0];
+    const song = (await findByNumber(q)) ?? (await searchSongs(q, 10, 0)).items[0] ?? null;
     if (!song) {
       setFeedback("Song not found");
       return;
@@ -482,7 +479,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
                 onClick={() => void send({ kind: "setLyricOffset", offsetSec: (room?.lyricOffsetSec ?? 0) + 0.5 })}
                 icon={<SharpIcon size="2.6vh" />}
               />
-              <ControlButton label="Fullscreen" onClick={toggleFullscreen} icon={<span style={{ fontSize: "2.6vh" }}>⛶</span>} />
+              <ControlButton label="Fullscreen" onClick={toggleFullscreen} icon={<FullscreenIcon size="2.6vh" />} />
             </div>
           )}
 

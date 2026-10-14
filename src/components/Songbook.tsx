@@ -7,7 +7,7 @@
 // an overlay, so the karaoke screen behind it never stops.
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { SongMeta } from "@/lib/scanner";
-import { searchSongs, songLabel } from "@/lib/songsClient";
+import { searchSongs, findByNumber, songLabel } from "@/lib/songsClient";
 import { NumberPad } from "@/components/NumberPad";
 import { SearchIcon, CloseIcon, MusicIcon } from "@/components/Icons";
 
@@ -76,12 +76,8 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, feedback }: Son
     const q = number.trim();
     if (!q) return;
     setLocalFeedback(null);
-    // A number matches the parsed song number first, then falls back to text.
-    const page = await searchSongs(q, 10, 0);
-    const exact =
-      page.items.find((s) => s.number === q) ??
-      page.items.find((s) => s.number && s.number.replace(/^0+/, "") === q.replace(/^0+/, ""));
-    const song = exact ?? page.items[0];
+    // An exact song-number match wins; otherwise fall back to a text search.
+    const song = (await findByNumber(q)) ?? (await searchSongs(q, 10, 0)).items[0] ?? null;
     if (!song) {
       setLocalFeedback("Song not found");
       return;
@@ -201,9 +197,8 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, feedback }: Son
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
               style={navStyle(page <= 1)}
             >
-              ◀ Prev
-            </button>
-            <span style={{ fontSize: "2.2vh", opacity: 0.75 }}>
+              Prev
+            </button>            <span style={{ fontSize: "2.2vh", opacity: 0.75 }}>
               Page {page} / {pageCount} · {total} songs
             </span>
             <button
@@ -213,7 +208,7 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, feedback }: Son
               onClick={() => setOffset(offset + PAGE_SIZE)}
               style={navStyle(page >= pageCount)}
             >
-              Next ▶
+              Next
             </button>
           </footer>
         </>

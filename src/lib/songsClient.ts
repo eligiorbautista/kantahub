@@ -26,6 +26,15 @@ export async function resolveSongs(ids: string[]): Promise<SongMeta[]> {
   return (await res.json()) as SongMeta[];
 }
 
+/** Exact song-number lookup (tolerates missing/extra leading zeros). */
+export async function findByNumber(number: string): Promise<SongMeta | null> {
+  const params = new URLSearchParams({ number });
+  const res = await fetch(`/api/songs?${params.toString()}`);
+  if (!res.ok) throw new Error(`song number lookup failed: ${res.status}`);
+  const matches = (await res.json()) as SongMeta[];
+  return matches[0] ?? null;
+}
+
 /** Display label: "Title — Artist", or just the title when there is no artist. */
 export function songLabel(song: { title: string; artist: string }): string {
   return song.artist ? `${song.title} — ${song.artist}` : song.title;

@@ -42,7 +42,7 @@ export function NumberPad({ value, onChange, onSubmit, feedback }: NumberPadProp
     })),
     { label: "Clear", action: () => onChange(""), aria: "Clear" },
     { label: "0", action: () => press("0"), aria: "0" },
-    { label: "⌫", action: () => onChange(value.slice(0, -1)), aria: "Backspace" },
+    { label: "Del", action: () => onChange(value.slice(0, -1)), aria: "Backspace" },
   ];
 
   return (

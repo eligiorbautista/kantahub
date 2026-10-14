@@ -132,3 +132,11 @@ export function SharpIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function FullscreenIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z" />
+    </Svg>
+  );
+}

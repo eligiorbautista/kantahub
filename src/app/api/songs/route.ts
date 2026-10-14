@@ -22,6 +22,16 @@ export async function GET(request: Request) {
     return NextResponse.json(songs.filter((s) => wanted.has(s.id)));
   }
 
+  const numberParam = url.searchParams.get("number");
+  if (numberParam !== null) {
+    const n = numberParam.trim();
+    if (!n) return NextResponse.json([]);
+    const stripped = n.replace(/^0+/, "");
+    return NextResponse.json(
+      songs.filter((s) => s.number !== undefined && (s.number === n || s.number.replace(/^0+/, "") === stripped)),
+    );
+  }
+
   const q = url.searchParams.get("q");
   const limitParam = url.searchParams.get("limit");
   const offsetParam = url.searchParams.get("offset");

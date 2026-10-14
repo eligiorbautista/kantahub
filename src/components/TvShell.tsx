@@ -7,6 +7,7 @@
 // storage, and extracts the embedded lyrics from the streamed file so
 // LyricsView can highlight lines in time.
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { AUTO_ADVANCE_SECONDS, nextAfter } from "@/lib/autoAdvance";
 import { branding } from "@/lib/branding";
 import { extractLyrics, type LyricLine } from "@/lib/lyrics";
 import { walkMidiTracks } from "@/lib/midiMeta";
@@ -23,6 +24,7 @@ import { filterSongs } from "@/lib/search";
 import type { SongMeta } from "@/lib/scanner";
 import type { RemoteState } from "@/lib/remoteStore";
 import { usePlayer } from "@/components/PlayerProvider";
+import { AutoAdvanceOverlay } from "@/components/AutoAdvanceOverlay";
 import { QrPanel } from "@/components/QrPanel";
 import { BackgroundMedia } from "@/components/BackgroundMedia";
 import { Favorites, RecentlyPlayed } from "@/components/Favorites";
@@ -121,6 +123,12 @@ export function TvShell({
   // A selection made while the engine is still booting (first gesture of the
   // session) is parked here and replayed once PlayerProvider attaches it.
   const pendingRef = useRef<string | null>(null);
+  // Auto-advance countdown (R-countdown): wall-clock deadline of the
+  // between-songs countdown, set when the engine reports the song ended and
+  // something is queued; null while no countdown runs. The seconds left are
+  // derived state updated by the countdown ticker below.
+  const [autoAdvanceAt, setAutoAdvanceAt] = useState<number | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(AUTO_ADVANCE_SECONDS);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +184,9 @@ export function TvShell({
   const songsRef = useRef(songs);
   const playNowRef = useRef(playNow);
   const playbackRef = useRef({ currentId: state.currentId, isPlaying: state.isPlaying });
+  // The countdown effects below latch on the songEnd event (not on every
+  // queue edit), so they read the live queue through this ref too.
+  const queueRef = useRef(queue);
   useEffect(() => {
     songsRef.current = songs;
   }, [songs]);
@@ -185,6 +196,9 @@ export function TvShell({
   useEffect(() => {
     playbackRef.current = { currentId: state.currentId, isPlaying: state.isPlaying };
   }, [state.currentId, state.isPlaying]);
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
 
   // Phone-remote bridge (R-session): subscribe to this session's SSE stream
   // and mirror each pushed state snapshot into local playback — start the
@@ -272,6 +286,60 @@ export function TvShell({
     playNow(next);
   }, [queue, playNow]);
 
+  // --- Auto-advance with countdown (R-countdown, R-next) ---
+  // The countdown owns the moment of advancing: taking the queue head and
+  // playing it (playNext) spans this component's queue state and the
+  // player store, so it cannot live lower in the stack. Effects latch on
+  // the songEnd count (state.songEndCount) — the only signal that the
+  // song ended naturally rather than being paused or stopped.
+  const playNextRef = useRef(playNext);
+  const cancelAutoAdvance = useCallback(() => setAutoAdvanceAt(null), []);
+  useEffect(() => {
+    playNextRef.current = playNext;
+  }, [playNext]);
+
+  // Start the countdown when a song ends and something is queued.
+  useEffect(() => {
+    if (state.songEndCount === 0) return;
+    const endedId = playbackRef.current.currentId; // currentId survives songEnd
+    const nextId = nextAfter(endedId, queueRef.current.map((s) => s.id));
+    if (!nextId) return; // nothing queued: no countdown, stay on the end screen
+    setSecondsLeft(AUTO_ADVANCE_SECONDS); // no stale "1" from the last countdown
+    setAutoAdvanceAt(Date.now() + AUTO_ADVANCE_SECONDS * 1000);
+  }, [state.songEndCount]);
+
+  // Ticker: derive the visible seconds and fire the advance at zero. The
+  // deadline is wall-clock, so a throttled tab fires late but never early.
+  useEffect(() => {
+    if (autoAdvanceAt === null) return;
+    const tick = () => {
+      const remaining = autoAdvanceAt - Date.now();
+      if (remaining > 0) {
+        setSecondsLeft(Math.max(1, Math.ceil(remaining / 1000)));
+      } else {
+        setAutoAdvanceAt(null); // clears first so the cancel/-override effect
+        playNextRef.current(); // cannot re-trigger after the advance
+      }
+    };
+    tick();
+    const timer = window.setInterval(tick, 200);
+    return () => window.clearInterval(timer);
+  }, [autoAdvanceAt]);
+
+  // Cancel when the moment passes a human re-took control (resume, another
+  // song, stop) or the queue was emptied mid-countdown.
+  useEffect(() => {
+    if (autoAdvanceAt === null) return;
+    const endedId = state.currentId;
+    if (
+      state.isPlaying ||
+      endedId === null ||
+      !nextAfter(endedId, queueRef.current.map((s) => s.id))
+    ) {
+      cancelAutoAdvance();
+    }
+  }, [autoAdvanceAt, state.isPlaying, state.currentId, queue, cancelAutoAdvance]);
+
   const onPlayPause = useCallback(() => {
     unlockAudio();
     if (state.isPlaying) store.pause();
@@ -295,6 +363,11 @@ export function TvShell({
   const currentTitle = current
     ? `${current.title}${current.artist ? ` — ${current.artist}` : ""}`
     : null;
+  // The overlay shows the queue head (via nextAfter) as long as a countdown
+  // runs and the head still resolves to a song in the library.
+  const autoNextId =
+    autoAdvanceAt !== null ? nextAfter(state.currentId, queue.map((s) => s.id)) : null;
+  const autoNext = autoNextId !== null ? songsById.get(autoNextId) : undefined;
 
   return (
     <main
@@ -372,6 +445,13 @@ export function TvShell({
         >
           <BackgroundMedia />
           <LyricsView lines={lines} timeSec={state.positionSec} />
+          {autoNext && (
+            <AutoAdvanceOverlay
+              secondsLeft={secondsLeft}
+              nextTitle={`${autoNext.title}${autoNext.artist ? ` — ${autoNext.artist}` : ""}`}
+              onCancel={cancelAutoAdvance}
+            />
+          )}
         </section>
 
         <section aria-label="Queue" style={{ width: "20vw", minHeight: 0, overflowY: "auto" }}>

@@ -63,6 +63,18 @@ describe("engine event bridging", () => {
     cbs.state!({ isPlaying: false });
     expect(store.state().isPlaying).toBe(false);
   });
+
+  it("counts engine songEnd events so the UI can auto-advance", () => {
+    const { engine, cbs } = mockEngine();
+    const store = createPlayerStore(engine);
+    store.unlockAudio();
+    store.playSong("id1");
+    expect(store.state().songEndCount).toBe(0);
+    cbs.songEnd!();
+    expect(store.state().songEndCount).toBe(1);
+    expect(store.state().isPlaying).toBe(false);
+    expect(store.state().currentId).toBe("id1"); // auto-advance still knows what ended
+  });
 });
 
 describe("stale async guards", () => {

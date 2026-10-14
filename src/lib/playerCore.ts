@@ -27,6 +27,10 @@ export interface PlayerState {
   isPlaying: boolean;
   positionSec: number;
   currentLyric: string | null;
+  /** Monotonic count of engine `songEnd` events (natural song ends). Lets
+   *  the UI distinguish "song finished" from a user pause/stop and drive
+   *  the auto-advance countdown. */
+  songEndCount: number;
 }
 
 export interface PlayerStore {
@@ -46,6 +50,7 @@ const initialState: PlayerState = {
   isPlaying: false,
   positionSec: 0,
   currentLyric: null,
+  songEndCount: 0,
 };
 
 export function createPlayerStore(engine?: PlayerEngine): PlayerStore {
@@ -81,7 +86,16 @@ export function createPlayerStore(engine?: PlayerEngine): PlayerStore {
       }
     });
     e.on("songEnd", () => {
-      state = { ...state, isPlaying: false, positionSec: 0, currentLyric: null };
+      // Keep currentId: the auto-advance countdown needs to know which song
+      // just ended (its queue position is already gone — it was removed
+      // when playback started).
+      state = {
+        ...state,
+        isPlaying: false,
+        positionSec: 0,
+        currentLyric: null,
+        songEndCount: state.songEndCount + 1,
+      };
       emit();
     });
     e.on("state", (p?: unknown) => {

@@ -9,6 +9,8 @@
 // nothing re-keys while the seconds tick, so focus inside survives
 // (R-tv). The ticking number is aria-hidden: the "UP NEXT {title}" line and
 // the button's label carry the meaning without re-announcing every second.
+import { CloseIcon } from "@/components/Icons";
+
 export function AutoAdvanceOverlay({
   secondsLeft,
   nextTitle,
@@ -82,7 +84,7 @@ export function AutoAdvanceOverlay({
             cursor: "pointer",
           }}
         >
-          ✕ Cancel
+          <CloseIcon size={16} /> Cancel
         </button>
       </div>
     </div>

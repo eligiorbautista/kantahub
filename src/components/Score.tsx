@@ -63,7 +63,7 @@ export function Score({
       </p>
       <p style={{ margin: 0, fontSize: "1.6vw", fontWeight: 700 }}>{reaction}</p>
       <p style={{ margin: 0, fontSize: "0.95vw", opacity: 0.6 }}>
-        Cosmetic only — no microphone, just for fun 🎤
+        Cosmetic only — no microphone, just for fun
       </p>
     </div>
   );

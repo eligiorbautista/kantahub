@@ -7,12 +7,12 @@
 // Keep this bundle light: fetch + EventSource only, no synth/player code
 // (R-bundle).
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useSearchParams } from "next/navigation";
 import type { RemoteState } from "@/lib/remoteStore";
 import type { RemoteCommand } from "@/lib/remoteCommands";
 import type { SongMeta } from "@/lib/scanner";
 import { filterSongs } from "@/lib/search";
 import { branding } from "@/lib/branding";
+import { BookIcon, CloseIcon, MusicIcon, NextIcon, PauseIcon, PlayIcon, SearchIcon } from "@/components/Icons";
 
 type View = "search" | "songbook" | "queue";
 
@@ -56,8 +56,7 @@ function songLabel(song: SongMeta): string {
   return song.artist ? `${song.title} — ${song.artist}` : song.title;
 }
 
-export function RemoteControl() {
-  const session = useSearchParams().get("session") ?? "";
+export function RemoteControl({ session }: { session: string }) {
   const [songs, setSongs] = useState<SongMeta[]>([]);
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const [remote, setRemote] = useState<RemoteState | null>(null);
@@ -215,17 +214,19 @@ export function RemoteControl() {
           </div>
           <button
             type="button"
+            aria-label="Pause"
             style={{ ...bigButton, background: "#3a3a4a" }}
             onClick={() => void send({ kind: "pause" }, "Paused")}
           >
-            ⏸
+            <PauseIcon size={20} />
           </button>
           <button
             type="button"
+            aria-label="Next song"
             style={{ ...bigButton, background: "#3a3a4a" }}
             onClick={() => void send({ kind: "next" }, "Next song")}
           >
-            ⏭
+            <NextIcon size={20} />
           </button>
         </section>
       )}
@@ -241,10 +242,23 @@ export function RemoteControl() {
             style={{
               ...bigButton,
               flex: 1,
+              gap: 8,
               background: view === v ? "#1f6feb" : "#22222e",
             }}
           >
-            {v === "search" ? "🔍 Search" : v === "songbook" ? "📖 Song Book" : `🎵 Queue${remote && remote.queue.length > 0 ? ` (${remote.queue.length})` : ""}`}
+            {v === "search" ? (
+              <>
+                <SearchIcon size={18} /> Search
+              </>
+            ) : v === "songbook" ? (
+              <>
+                <BookIcon size={18} /> Song Book
+              </>
+            ) : (
+              <>
+                <MusicIcon size={18} /> Queue{remote && remote.queue.length > 0 ? ` (${remote.queue.length})` : ""}
+              </>
+            )}
           </button>
         ))}
       </nav>
@@ -356,17 +370,19 @@ export function RemoteControl() {
                   </div>
                   <button
                     type="button"
+                    aria-label={`Play ${song.title} now`}
                     style={{ ...bigButton, background: "#3a3a4a", minWidth: 48 }}
                     onClick={() => void send({ kind: "play", songId: song.id }, `Playing: ${song.title}`)}
                   >
-                    ▶
+                    <PlayIcon size={18} />
                   </button>
                   <button
                     type="button"
+                    aria-label={`Remove ${song.title} from the queue`}
                     style={{ ...bigButton, background: "#472f2f", minWidth: 48 }}
                     onClick={() => void send({ kind: "dequeue", songId: song.id }, `Removed: ${song.title}`)}
                   >
-                    ✕
+                    <CloseIcon size={18} />
                   </button>
                 </li>
               ))}
@@ -423,7 +439,7 @@ function SongRow({
         style={{ ...bigButton, background: "#3a3a4a" }}
         onClick={() => onPlay(song)}
       >
-        ▶
+        <PlayIcon size={18} />
       </button>
     </li>
   );

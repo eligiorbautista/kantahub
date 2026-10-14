@@ -6,6 +6,7 @@
 // the row. Enter activates the focused button natively.
 import { useRef, useState } from "react";
 import type { SongMeta } from "@/lib/scanner";
+import { CloseIcon } from "@/components/Icons";
 
 export interface QueueProps {
   queue: SongMeta[];
@@ -106,7 +107,7 @@ export function Queue({ queue, onPlay, onRemove }: QueueProps) {
                   cursor: "pointer",
                 }}
               >
-                ✕
+                <CloseIcon size={16} />
               </button>
             </li>
           ))}

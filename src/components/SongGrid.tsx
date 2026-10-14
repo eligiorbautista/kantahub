@@ -8,6 +8,7 @@
 // ArrowLeft walks back toward the row.
 import { useRef, useState } from "react";
 import type { SongMeta } from "@/lib/scanner";
+import { HeartIcon } from "@/components/Icons";
 
 export interface SongGridProps {
   songs: SongMeta[];
@@ -145,7 +146,15 @@ export function SongGrid({ songs, onPlay, onQueue, onToggleFavorite, isFavorite 
                   }}
                   style={favButtonStyle(active, favorite)}
                 >
-                  {favorite ? "♥ Fav" : "♡ Fav"}
+                  {favorite ? (
+                    <>
+                      <HeartIcon size={16} filled /> Fav
+                    </>
+                  ) : (
+                    <>
+                      <HeartIcon size={16} /> Fav
+                    </>
+                  )}
                 </button>
                 <button
                   ref={(el) => {

@@ -1,18 +1,19 @@
-// Phone remote page (/remote?session=<id>). The heavy lifting lives in the
-// RemoteControl client component, which reads the session from the query
-// string, so it must render inside a Suspense boundary. This page is a
-// static shell — no runtime data is read here — and it deliberately does
-// NOT pull in the SpessaSynth player core (R-bundle).
-import { Suspense } from "react";
+// Phone remote page (/remote?session=<id>). The session id comes from the
+// query string; reading it here (server side) makes the page dynamic and lets
+// the remote shell render server-side, so the page is never blank while the
+// client hydrates. The heavy lifting still lives in the RemoteControl client
+// component, which deliberately does NOT pull in the SpessaSynth player core
+// (R-bundle).
 import { RemoteControl } from "@/components/RemoteControl";
 import { branding } from "@/lib/branding";
 
 export const metadata = { title: `${branding.name} Remote` };
 
-export default function RemotePage() {
-  return (
-    <Suspense fallback={null}>
-      <RemoteControl />
-    </Suspense>
-  );
+export default async function RemotePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ session?: string }>;
+}) {
+  const { session } = await searchParams;
+  return <RemoteControl session={session ?? ""} />;
 }

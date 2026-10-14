@@ -14,6 +14,7 @@
 import { useRef, useState, type RefObject } from "react";
 import { nextVoiceIndex } from "@/lib/voiceNav";
 import { usePlayer } from "@/components/PlayerProvider";
+import { FlatIcon, MicIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, SharpIcon, StopIcon } from "@/components/Icons";
 import {
   clampTempo,
   clampTranspose,
@@ -97,14 +98,18 @@ function VoiceControls({
   };
 
   const keyButtons = [
-    { id: "voice-key-down", label: "♭", aria: "Transpose down one semitone", onClick: () => shiftTranspose(-1) },
+    { id: "voice-key-down", label: <FlatIcon size={18} />, aria: "Transpose down one semitone", onClick: () => shiftTranspose(-1) },
     {
       id: "voice-guide",
-      label: guideMuted ? "🎤 Guide off" : "🎤 Guide on",
+      label: (
+        <>
+          <MicIcon size={16} /> {guideMuted ? "Guide off" : "Guide on"}
+        </>
+      ),
       aria: guideMuted ? "Unmute guide melody channel" : "Mute guide melody channel",
       onClick: toggleGuideMute,
     },
-    { id: "voice-key-up", label: "♯", aria: "Transpose up one semitone", onClick: () => shiftTranspose(1) },
+    { id: "voice-key-up", label: <SharpIcon size={18} />, aria: "Transpose up one semitone", onClick: () => shiftTranspose(1) },
   ];
 
   return (
@@ -223,16 +228,54 @@ export function Transport({
   // change with isPlaying, so keying by either would remount the focused
   // button and drop DOM focus on every toggle.
   const buttons = [
-    { id: "restart", label: "⏮ Restart", aria: "Restart song from the beginning", onClick: onPrev, disabled: !hasSong },
+    {
+      id: "restart",
+      label: (
+        <>
+          <PrevIcon size={18} /> Restart
+        </>
+      ),
+      aria: "Restart song from the beginning",
+      onClick: onPrev,
+      disabled: !hasSong,
+    },
     {
       id: "playpause",
-      label: isPlaying ? "⏸ Pause" : "▶ Play",
+      label: isPlaying ? (
+        <>
+          <PauseIcon size={18} /> Pause
+        </>
+      ) : (
+        <>
+          <PlayIcon size={18} /> Play
+        </>
+      ),
       aria: isPlaying ? "Pause" : "Play",
       onClick: onPlayPause,
       disabled: !isPlaying && !hasSong,
     },
-    { id: "stop", label: "⏹ Stop", aria: "Stop", onClick: onStop, disabled: !hasSong },
-    { id: "next", label: "⏭ Next", aria: "Play next song in queue", onClick: onNext, disabled: !hasNext },
+    {
+      id: "stop",
+      label: (
+        <>
+          <StopIcon size={18} /> Stop
+        </>
+      ),
+      aria: "Stop",
+      onClick: onStop,
+      disabled: !hasSong,
+    },
+    {
+      id: "next",
+      label: (
+        <>
+          <NextIcon size={18} /> Next
+        </>
+      ),
+      aria: "Play next song in queue",
+      onClick: onNext,
+      disabled: !hasNext,
+    },
   ];
 
   const firstEnabled = buttons.findIndex((b) => !b.disabled);

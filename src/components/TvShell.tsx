@@ -208,7 +208,10 @@ export function TvShell({
           .map((id) => byId.get(id))
           .filter((s): s is SongMeta => s !== undefined),
       );
-      if (remote.currentId && remote.currentId !== lastPlayedId) {
+      // Play: only when the remote is actually playing (an enqueue echo
+      // while the remote is paused must not auto-start), and only for a
+      // newly pushed id — repeat snapshots must not restart the song.
+      if (remote.isPlaying && remote.currentId && remote.currentId !== lastPlayedId) {
         const song = byId.get(remote.currentId);
         if (song) {
           lastPlayedId = remote.currentId;
@@ -223,6 +226,11 @@ export function TvShell({
         playback.isPlaying
       ) {
         store.pause();
+        // The server keeps currentId through a pause, so without this a
+        // later `play` of the same id would be swallowed by the id guard
+        // above. Clearing it lets pause → play (same song) restart the
+        // track — matching the command API's positionSec=0 semantics.
+        lastPlayedId = null;
       }
     });
     return () => es.close();

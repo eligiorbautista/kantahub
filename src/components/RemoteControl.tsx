@@ -18,6 +18,8 @@ type View = "search" | "songbook" | "queue";
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const OTHER = "#";
+/** Rows mounted at once in the Song Book before a "Show more" tap. */
+const SONG_BOOK_PAGE = 300;
 /** First-character bucket for the Song Book index; non A–Z titles land in "#". */
 function letterOfTitle(title: string): string {
   const c = (title.trim()[0] ?? "").toUpperCase();
@@ -63,9 +65,9 @@ export function RemoteControl() {
   const [view, setView] = useState<View>("search");
   const [query, setQuery] = useState("");
   const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
+  const [songBookCount, setSongBookCount] = useState(SONG_BOOK_PAGE);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const letterRefs = useRef(new Map<string, HTMLDivElement>());
 
   // Load the library (server-cached, fast even on huge collections).
   useEffect(() => {
@@ -165,10 +167,17 @@ export function RemoteControl() {
     return orderedLetters.map((letter) => ({ letter, songs: buckets.get(letter)! }));
   }, [songs]);
 
+  // Only one letter bucket renders at a time, paged by SONG_BOOK_PAGE, so a
+  // ~48k-song library never mounts more than one page of rows (worst case:
+  // SONG_BOOK_PAGE rows per render; "Show more" grows it only on demand).
   const jumpToLetter = useCallback((letter: string) => {
     setSelectedLetter(letter);
-    letterRefs.current.get(letter)?.scrollIntoView({ block: "start" });
+    setSongBookCount(SONG_BOOK_PAGE);
   }, []);
+
+  const activeLetter = selectedLetter ?? songBook[0]?.letter ?? null;
+  const activeBucket = songBook.find((b) => b.letter === activeLetter)?.songs ?? [];
+  const songBookRows = activeBucket.slice(0, songBookCount);
 
   if (!session) {
     return (
@@ -295,7 +304,7 @@ export function RemoteControl() {
                   style={{
                     ...letterButton,
                     opacity: songBook.some((b) => b.letter === letter) ? 1 : 0.3,
-                    background: selectedLetter === letter ? "#1f6feb" : "#22222e",
+                    background: activeLetter === letter ? "#1f6feb" : "#22222e",
                   }}
                   onClick={() => jumpToLetter(letter)}
                 >
@@ -305,24 +314,29 @@ export function RemoteControl() {
             </div>
             {libraryError && <p role="alert" style={{ color: "#ffb4ab", margin: "0 16px" }}>{libraryError}</p>}
             <div style={{ overflowY: "auto", flex: 1, minHeight: 0, padding: "0 16px" }}>
-              {songBook.map(({ letter, songs: bucket }) => (
-                <div
-                  key={letter}
-                  ref={(el) => {
-                    if (el) letterRefs.current.set(letter, el);
-                    else letterRefs.current.delete(letter);
-                  }}
-                >
-                  <h2 style={{ position: "sticky", top: 0, background: "#0b0b12", margin: "8px 0 4px", padding: "6px 0", fontSize: 18, color: "#9ecbff", scrollMarginTop: 4 }}>
-                    {letter} <span style={{ opacity: 0.5, fontSize: 13 }}>({bucket.length})</span>
+              {activeBucket.length > 0 ? (
+                <>
+                  <h2 style={{ position: "sticky", top: 0, background: "#0b0b12", margin: "8px 0 4px", padding: "6px 0", fontSize: 18, color: "#9ecbff" }}>
+                    {activeLetter} <span style={{ opacity: 0.5, fontSize: 13 }}>({activeBucket.length})</span>
                   </h2>
                   <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-                    {bucket.map((song) => (
+                    {songBookRows.map((song) => (
                       <SongRow key={song.id} song={song} onEnqueue={enqueue} onPlay={playNow} />
                     ))}
                   </ul>
-                </div>
-              ))}
+                  {activeBucket.length > songBookCount && (
+                    <button
+                      type="button"
+                      style={{ ...bigButton, width: "100%", margin: "12px 0" }}
+                      onClick={() => setSongBookCount((n) => n + SONG_BOOK_PAGE)}
+                    >
+                      Show more ({songBookRows.length} of {activeBucket.length})
+                    </button>
+                  )}
+                </>
+              ) : (
+                !libraryError && <p style={{ opacity: 0.7, fontSize: 15 }}>Loading songs…</p>
+              )}
             </div>
           </section>
         )}

@@ -9,6 +9,8 @@ export interface LyricsViewProps {
 // large at the optical pole (slightly above center), the upcoming line
 // smaller below it. With no lyrics the song is instrumental; before the
 // first line a numeric intro countdown counts down to the opening lyric.
+// The root is positioned above the z-0 layer so the BackgroundMedia
+// slideshow/BGV always stays behind the text.
 export function LyricsView({ lines, timeSec }: LyricsViewProps) {
   const active = activeLineIndex(lines, timeSec);
   const next = active >= 0 ? lines[active + 1] : lines[0];
@@ -18,6 +20,8 @@ export function LyricsView({ lines, timeSec }: LyricsViewProps) {
     <div
       data-testid="lyrics-view"
       style={{
+        position: "relative",
+        zIndex: 1,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",

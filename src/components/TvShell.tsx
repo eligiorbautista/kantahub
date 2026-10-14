@@ -22,6 +22,7 @@ import {
 import { filterSongs } from "@/lib/search";
 import type { SongMeta } from "@/lib/scanner";
 import { usePlayer } from "@/components/PlayerProvider";
+import { BackgroundMedia } from "@/components/BackgroundMedia";
 import { Favorites, RecentlyPlayed } from "@/components/Favorites";
 import LyricsView from "@/components/LyricsView";
 import { SearchBar } from "@/components/SearchBar";
@@ -285,6 +286,7 @@ export function TvShell() {
         <section
           aria-label="Lyrics"
           style={{
+            position: "relative",
             flex: 1,
             minWidth: 0,
             background: "#000",
@@ -292,6 +294,7 @@ export function TvShell() {
             overflow: "hidden",
           }}
         >
+          <BackgroundMedia />
           <LyricsView lines={lines} timeSec={state.positionSec} />
         </section>
 

@@ -14,14 +14,19 @@ audio entirely in the browser. A phone acts as the remote — no app to install.
 
 ## What you get
 
-- **TV screen** — browse/search your library, big highlighted lyrics, transport, queue.
-- **Phone remote** — scan a QR code on the TV, then search, queue, and control playback
-  from your phone. Includes a **Song Book** to browse the whole library A–Z (no need to
-  know a song number).
-- **Karaoke controls** — guide-melody mute, key transpose, tempo, volume.
-- **Party flow** — favorites, recently played, auto-advance with a countdown, M3U import,
-  a cosmetic fun score, and background slideshow/BGV video.
-- **LAN IP auto-detection** for the phone-remote QR (`PUBLIC_URL` override available).
+- **TV screen (`/tv`)** — a clean, fullscreen, lyrics-first stage: background video,
+  large synchronized lyrics with a karaoke wipe, a compact "now singing / up next"
+  overlay, a short queue strip, and a server-synced "starting in 5…" countdown.
+- **Controller (`/`)** — open it on any phone, tablet, laptop, or desktop to search,
+  enter a song number, build and reorder the queue, set the singer's name, and drive
+  playback. No app to install.
+- **Songbook** — a TV-remote-friendly song browser (D-pad, paged, song-number keypad)
+  that opens as an overlay without stopping the song.
+- **Admin (`/admin`)** — fix a song's displayed title/artist/number (persisted as an
+  override) and run a library rescan that previews what changed.
+- **Realtime room** — current singer, countdown, playback state, queue, and volume
+  stay in sync across every connected device over SSE; the TV resyncs on reconnect.
+- **LAN IP auto-detection** for the QR code shown on the TV (`PUBLIC_URL` override available).
 
 ---
 
@@ -53,17 +58,33 @@ audio entirely in the browser. A phone acts as the remote — no app to install.
    docker compose up -d --build
    ```
 
-4. **Open it.** On the same TV/PC, browse to `http://<your-host-LAN-IP>:3005`.
+4. **Open the TV screen.** On the TV/PC, browse to `http://<your-host-LAN-IP>:3005/tv`.
    The server prints its network URL on startup; you can also find the host IP with
    `ipconfig` (Windows) or `ip a` (Linux).
 
    > Kantahub is published on host port **3005** by default (port 3000 was already
    > in use on this machine). Change it with `KANTAHUB_PORT` in `.env`.
 
-5. **Phone remote.** On the TV screen, scan the QR code with your phone (same Wi-Fi).
-   The phone opens the remote — search, use the **Song Book**, and queue songs. The TV plays.
+5. **Control it.** Scan the QR code on the TV with your phone (same Wi-Fi), or open
+   `http://<your-host-LAN-IP>:3005/` on any device. Search, enter a song number, queue
+   songs, and press play — the TV shows the countdown, then plays with lyrics.
 
 To stop: `docker compose down`. To update after code changes: `docker compose up -d --build`.
+
+---
+
+## Background media
+
+Drop background images and/or a background video into the `media/` folder (mounted to
+`/media`). They are read live from disk — **no rebuild or restart is needed**, just
+refresh `/tv`.
+
+- **Video:** `.mp4` or `.webm`. It plays fullscreen (cover), muted, and looping.
+- **Images:** `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif` — shown as a slow slideshow.
+- **A video wins over images**, and only the **first video in alphabetical order** is
+  used. If you keep several, name the one you want first (e.g. `01-bgv.mp4`).
+- Media is streamed with HTTP Range support, so large videos can seek and play
+  progressively. Even so, a smaller clip (a few tens of MB) starts faster on a TV.
 
 ---
 
@@ -91,9 +112,8 @@ The song/sound/media content is **mounted, never baked into the image**.
 - **No login.** Kantahub runs open on your LAN — anyone on your network can use it.
   Keep it on a trusted home network.
 - **Lyrics** are embedded in the MIDI/KAR file itself, so there is no separate lyrics
-  database to manage.
-- **Scoring is cosmetic.** The fun score at song end is randomized for entertainment;
-  Kantahub never captures your microphone.
+  database to manage. The TV highlights them from the real playback position; a host
+  can nudge the timing with the **Lyrics −/+** controls.
 - Large libraries are fine: the library index is cached, so even tens of thousands of
   songs load quickly after the first scan. **The very first start indexes your library
   once** (a few minutes for a very large collection, and the cache is stored in the

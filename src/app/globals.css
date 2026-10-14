@@ -315,9 +315,31 @@ input:focus-visible,
   .ctl-searchrow {
     flex-direction: column;
   }
+  /* In a column flex container flex-basis is a HEIGHT, which would stretch the
+     search box (and strand the absolutely-positioned icon); reset it. */
+  .ctl-searchrow > .ctl-searchbox {
+    flex: none;
+  }
   .ctl-searchrow > button {
     width: 100%;
     justify-content: center;
+  }
+}
+
+/* Transport buttons: an even grid so they never leave a lone button on its own
+   row (2×2 on phones, a single row from small tablets up). */
+.ctl-transport {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.ctl-transport > button {
+  width: 100%;
+  justify-content: center;
+}
+@media (min-width: 34rem) {
+  .ctl-transport {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

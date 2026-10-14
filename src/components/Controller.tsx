@@ -180,7 +180,7 @@ export function Controller() {
             {room.queue.length > 0 ? " · next song coming up" : " · queue is empty"}
           </p>
         )}
-        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", alignItems: "center" }}>
+        <div className="ctl-transport">
           <button type="button" onClick={() => void send({ kind: "restart" })} style={btn} aria-label="Restart">
             <PrevIcon size={20} /> Restart
           </button>

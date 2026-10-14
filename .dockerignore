@@ -8,9 +8,12 @@ build/
 
 # version control
 .git
+.gitignore
 
 # env files and secrets (never enter the build context)
-.env*
+.env
+.env.*
+!.env.example
 *.pem
 
 # logs
@@ -21,14 +24,27 @@ yarn-error.log*
 # typescript build artifacts
 *.tsbuildinfo
 
-# AI tooling artifacts (never ship in images)
-docs/superpowers/
+# local content libraries (mounted volumes at runtime — never baked in)
+songs/
+sound/
+media/
+
+# tests and fixtures (not needed to build or run)
+tests/
+vitest.config.ts
+coverage/
+
+# documentation and AI tooling artifacts (never ship in images)
+docs/
+README.md
 .superpowers/
 .opencode/
 .claude/
 .cursor/
 .codex/
 .aider*
+Dockerfile
+docker-compose.yml
 
 # misc
 .DS_Store

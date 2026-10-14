@@ -1,0 +1,30 @@
+services:
+  kantahub:
+    build: .
+    image: kantahub:latest
+    container_name: kantahub
+    ports:
+      # Host port 3005 -> container 3005 (host 3000 was already taken by another
+      # app). The container PORT matches so the phone-remote QR advertises the
+      # right URL. Override with KANTAHUB_PORT if needed.
+      - "${KANTAHUB_PORT:-3005}:${KANTAHUB_PORT:-3005}"
+    environment:
+      # Keep the listening port in sync with the published host port above so the
+      # QR/remote URL built from PORT is correct.
+      - PORT=${KANTAHUB_PORT:-3005}
+      # Optional LAN URL override (e.g. http://192.168.1.50:3005). When empty
+      # the app auto-detects the first non-loopback IPv4 address.
+      - PUBLIC_URL=${PUBLIC_URL:-}
+      # Persisted library index cache (named volume below) so restarts are fast.
+      - INDEX_DIR=/index
+    volumes:
+      # Supply your own legally obtained MIDI/karaoke files and SoundFont here.
+      - ./songs:/songs
+      - ./sound:/sound
+      # Optional background images/videos; may be empty.
+      - ./media:/media
+      - kantahub-index:/index
+    restart: unless-stopped
+
+volumes:
+  kantahub-index:

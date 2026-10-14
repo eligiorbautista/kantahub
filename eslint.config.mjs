@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored synth worklet processor (minified, generated):
+    "public/*.min.js",
   ]),
 ]);
 

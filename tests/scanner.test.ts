@@ -14,6 +14,18 @@ describe("deriveFromFilename", () => {
     expect(deriveFromFilename("random_song.mid"))
       .toEqual({ artist: "", title: "random_song" });
   });
+  it("parses the numbered 'N - Title - Artist' convention", () => {
+    expect(deriveFromFilename("016001 - Us - Gracie Abrams ft. Taylor Swift.mid"))
+      .toEqual({ artist: "Gracie Abrams ft. Taylor Swift", title: "Us" });
+  });
+  it("drops the leading number for a simple numbered name", () => {
+    expect(deriveFromFilename("000001 - Trust in Me - Francesca Beghe.mid"))
+      .toEqual({ artist: "Francesca Beghe", title: "Trust in Me" });
+  });
+  it("keeps the generic 'Artist - Title' convention", () => {
+    expect(deriveFromFilename("ABBA - Dancing Queen.kar"))
+      .toEqual({ artist: "ABBA", title: "Dancing Queen" });
+  });
 });
 
 describe("parseSongFile", () => {

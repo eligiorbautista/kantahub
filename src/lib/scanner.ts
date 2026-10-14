@@ -22,13 +22,23 @@ export interface SongMeta {
 
 const SUPPORTED_EXT = /\.(mid|midi|kar)$/i;
 
-// Split "Artist - Title.ext" on the first " - "; without a separator the
-// whole base name is the title and the artist is empty.
+// Derive title/artist from the filename, supporting two conventions:
+//   numbered: "NNNNNN - Title - Artist.mid" (leading all-digits segment
+//             dropped, artist is the last segment, title everything between)
+//   generic:  "Artist - Title.ext" (artist first, title the rest)
+// Without a separator the whole base name is the title and artist is empty.
 export function deriveFromFilename(fileName: string): { title: string; artist: string } {
   const base = path.basename(fileName).replace(/\.[^.]+$/, "");
-  const idx = base.indexOf(" - ");
-  if (idx === -1) return { title: base.trim(), artist: "" };
-  return { title: base.slice(idx + 3).trim(), artist: base.slice(0, idx).trim() };
+  const parts = base.split(" - ").map((p) => p.trim());
+  if (parts.length >= 2 && /^\d+$/.test(parts[0])) {
+    const rest = parts.slice(1);
+    if (rest.length === 1) return { title: rest[0], artist: "" };
+    return { title: rest.slice(0, -1).join(" - "), artist: rest[rest.length - 1] };
+  }
+  if (parts.length >= 2) {
+    return { artist: parts[0], title: parts.slice(1).join(" - ") };
+  }
+  return { title: parts[0], artist: "" };
 }
 
 // Build metadata for one song file. fileName is the path relative to the

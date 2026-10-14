@@ -296,6 +296,31 @@ input:focus-visible,
   }
 }
 
+/* Search row: the search box and the Songbook button. On phones the button
+   drops to its own full-width row so it is an easy tap target. */
+.ctl-searchrow {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.ctl-searchrow > .ctl-searchbox {
+  position: relative;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.ctl-searchrow > button {
+  flex: none;
+}
+@media (max-width: 47.99rem) {
+  .ctl-searchrow {
+    flex-direction: column;
+  }
+  .ctl-searchrow > button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* Connection status pill on the controller: dot + label in one rounded chip. */
 .kh-status {
   display: inline-flex;

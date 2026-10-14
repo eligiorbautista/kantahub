@@ -106,9 +106,21 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, performing = fa
         gap: "2vh",
       }}
     >
-      <header style={{ display: "flex", alignItems: "center", gap: "2vw", flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0, fontSize: "3.2vh", fontWeight: 800 }}>Songbook</h2>
-        <div style={{ display: "flex", gap: "1vw" }}>
+      <header style={{ display: "flex", flexDirection: "column", gap: "1.2vh" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1.4vh" }}>
+          <h2 style={{ margin: 0, fontSize: "3.2vh", fontWeight: 800, flex: 1, minWidth: 0 }}>Songbook</h2>
+          <span style={{ opacity: 0.6, fontSize: "2vh", whiteSpace: "nowrap" }}>{queuedCount} in queue</span>
+          <button
+            type="button"
+            data-focusable="true"
+            onClick={onClose}
+            style={closeStyle}
+            aria-label="Close songbook"
+          >
+            <CloseIcon size="2.6vh" />
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: "1vh", flexWrap: "wrap" }}>
           <button
             type="button"
             data-focusable="true"
@@ -126,12 +138,6 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, performing = fa
             <MusicIcon size="2.2vh" /> Song number
           </button>
         </div>
-        <span style={{ opacity: 0.6, fontSize: "2vh", marginLeft: "auto" }}>
-          {queuedCount} in queue
-        </span>
-        <button type="button" data-focusable="true" onClick={onClose} style={closeStyle} aria-label="Close songbook">
-          <CloseIcon size="2.6vh" />
-        </button>
       </header>
 
       {mode === "search" ? (
@@ -181,7 +187,7 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, performing = fa
               <li style={{ opacity: 0.6, fontSize: "2.4vh" }}>No songs match “{query}”.</li>
             )}
           </ul>
-          <footer style={{ display: "flex", alignItems: "center", gap: "2vw", justifyContent: "center" }}>
+          <footer style={{ display: "flex", alignItems: "center", gap: "1.2vh" }}>
             <button
               type="button"
               data-focusable="true"
@@ -190,7 +196,8 @@ export function Songbook({ queuedIds, onAdd, onPlayNow, onClose, performing = fa
               style={navStyle(page <= 1)}
             >
               Prev
-            </button>            <span style={{ fontSize: "2.2vh", opacity: 0.75 }}>
+            </button>
+            <span style={{ flex: 1, textAlign: "center", fontSize: "2.2vh", opacity: 0.75 }}>
               Page {page} / {pageCount} · {total} songs
             </span>
             <button

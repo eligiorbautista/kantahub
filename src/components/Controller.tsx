@@ -199,25 +199,39 @@ export function Controller() {
           <button type="button" onClick={() => void send({ kind: "stop" })} style={btn} aria-label="Stop">
             <StopIcon size={20} /> Stop
           </button>
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginLeft: "auto" }}>
-            <span style={{ fontSize: "0.85rem", opacity: 0.7 }}>Volume</span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={room?.volume ?? 0.8}
-              onChange={(e) => void send({ kind: "setVolume", volume: Number(e.target.value) })}
-              style={{ width: "8rem" }}
-            />
-          </label>
         </div>
+
+        {/* Volume sits on its own full-width row: the transport buttons stay
+            grouped and the slider no longer crowds them on a phone. */}
+        <label style={{ display: "flex", alignItems: "center", gap: "0.7rem", marginTop: "0.9rem" }}>
+          <span style={{ fontSize: "0.85rem", opacity: 0.7, minWidth: "3.6rem" }}>Volume</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={room?.volume ?? 0.8}
+            onChange={(e) => void send({ kind: "setVolume", volume: Number(e.target.value) })}
+            style={{ flex: 1, minWidth: 0 }}
+          />
+          <span
+            style={{
+              fontSize: "0.85rem",
+              opacity: 0.7,
+              minWidth: "2.6rem",
+              textAlign: "right",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {Math.round((room?.volume ?? 0.8) * 100)}%
+          </span>
+        </label>
       </section>
 
       {/* Search + add songs (one box: title, artist, or song number) */}
       <section className="ctl-search" style={card}>
-        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: "1 1 14rem" }}>
+        <div className="ctl-searchrow">
+          <div className="ctl-searchbox">
             <span style={{ position: "absolute", left: "0.6rem", top: "50%", transform: "translateY(-50%)", opacity: 0.5 }}>
               <SearchIcon size={18} />
             </span>
@@ -233,7 +247,7 @@ export function Controller() {
             />
           </div>
           <button type="button" onClick={() => setSongbookOpen(true)} style={btn}>
-            <BookIcon size={18} /> Songbook
+            <BookIcon size={18} /> Open Songbook
           </button>
         </div>
 

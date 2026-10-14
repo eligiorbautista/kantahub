@@ -62,7 +62,11 @@ export class SpessaEngine implements PlayerEngine {
     seq.eventHandler.addEvent("songEnded", "player", () => this.emit("songEnd", null));
     seq.eventHandler.addEvent("timeChange", "player", (t: number) => this.emit("time", t));
     seq.eventHandler.addEvent("songChange", "player", (data) => this.emit("state", data));
-    seq.eventHandler.addEvent("textEvent", "player", (data) => this.emit("lyric", data));
+    seq.eventHandler.addEvent("textEvent", "player", (data) => {
+      // Meta text events carry the raw text bytes on the MIDI message.
+      const text = new TextDecoder().decode(data.event.data);
+      if (text) this.emit("lyric", { text, lyricsIndex: data.lyricsIndex });
+    });
     this.seq = seq;
   }
 

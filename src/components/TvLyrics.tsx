@@ -4,9 +4,18 @@
 // Lyrics-first stage for the TV. A window of lines is shown at once — a couple
 // of already-sung lines above, the active line highlighted with a left-to-right
 // karaoke wipe, and several upcoming lines below — so a singer who does not
-// have the song memorized can still keep up. The lyrics are visible immediately
-// (before the first line), so the singer can read ahead.
-import { activeLineIndex, introCountdown, type LyricLine } from "@/lib/lyrics";
+// have the song memorized can still keep up.
+//
+// Before the first line the lyrics are shown with a "Singing in N…" countdown.
+// During an instrumental break between lines the lyrics step aside for an
+// "Interlude" card, which brings the countdown back as the next line approaches.
+import {
+  activeLineIndex,
+  interludeInfo,
+  introCountdown,
+  INTERLUDE_COUNTDOWN_SEC,
+  type LyricLine,
+} from "@/lib/lyrics";
 
 export interface TvLyricsProps {
   lines: LyricLine[];
@@ -29,8 +38,51 @@ export function TvLyrics({ lines, timeSec }: TvLyricsProps) {
   }
 
   const active = activeLineIndex(lines, timeSec);
-  // Seconds until the singer's first line: shown as a countdown badge while the
-  // instrumental intro plays, so the singer knows exactly when to come in.
+  const interlude = interludeInfo(lines, timeSec);
+
+  // An instrumental break between lines: hide the lyrics and show the break,
+  // counting the singer back in as the next line nears.
+  if (interlude.active) {
+    const seconds = Math.max(1, Math.ceil(interlude.untilNextSec));
+    return (
+      <div
+        data-testid="tv-interlude"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "2.4vh",
+          width: "100%",
+          textAlign: "center",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontSize: "clamp(4vh, 8vw, 12vh)",
+            fontWeight: 900,
+            letterSpacing: "0.04em",
+            opacity: 0.92,
+            textShadow: "0 0.4vh 2vh rgba(0,0,0,0.9)",
+          }}
+        >
+          Interlude
+        </p>
+        {interlude.untilNextSec <= INTERLUDE_COUNTDOWN_SEC && (
+          <p
+            data-testid="tv-interlude-countdown"
+            aria-live="polite"
+            style={{ margin: 0, fontSize: "3.6vh", fontWeight: 700, textShadow: "0 0.3vh 1vh rgba(0,0,0,0.9)" }}
+          >
+            Singing in{" "}
+            <span style={{ color: "#fbbf24", fontWeight: 900, fontSize: "5.6vh" }}>{seconds}</span>…
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Seconds until the singer's first line: shown while the intro plays.
   const countdown = introCountdown(lines, timeSec);
   // Before the first line, treat the opening line as active (wipe at 0%) so the
   // lyrics are on screen from the very start.

@@ -11,12 +11,17 @@ export interface QueueEntry {
   singer: string;
 }
 
-export type RoomPhase = "idle" | "countdown" | "playing";
+export type RoomPhase = "idle" | "countdown" | "playing" | "score";
+
+export interface ScoreResult {
+  value: number;
+  reaction: string;
+}
 
 export interface RemoteState {
   session: string;
   queue: QueueEntry[];
-  /** Song currently on stage (countdown or playing). */
+  /** Song currently on stage (countdown, playing, or being scored). */
   currentId: string | null;
   /** Singer of the song on stage. */
   currentSinger: string;
@@ -36,6 +41,12 @@ export interface RemoteState {
    * its own clock drift, so all devices show the same countdown.
    */
   countdownEndsAt: number | null;
+  /**
+   * Post-song celebration: the cosmetic score and the epoch-ms deadline before
+   * the next song may start. Set while phase === "score".
+   */
+  score: ScoreResult | null;
+  scoreEndsAt: number | null;
   /** Server clock when this snapshot was produced (epoch ms), for clock sync. */
   serverNow: number;
   /** Host lyrics timing nudge in seconds (positive delays the highlight). */
@@ -70,6 +81,8 @@ function createEmptyState(session: string): RemoteState {
     positionSec: 0,
     seekNonce: 0,
     countdownEndsAt: null,
+    score: null,
+    scoreEndsAt: null,
     serverNow: Date.now(),
     lyricOffsetSec: defaultLyricOffsetSec,
     volume: 0.8,

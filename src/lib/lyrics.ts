@@ -8,6 +8,9 @@ import { walkMidiTracks } from "@/lib/midiMeta";
 
 export interface LyricLine {
   timeSec: number;
+  /** Approximate time the last syllable of this line is sung. Used to tell a
+   *  finished line apart from an instrumental break before the next one. */
+  endSec?: number;
   text: string;
 }
 
@@ -86,10 +89,17 @@ export function extractLyrics(
   const lines: LyricLine[] = [];
   let text = "";
   let startTicks = 0;
+  let endTicks = 0;
 
   const flush = () => {
     const trimmed = text.trim();
-    if (trimmed) lines.push({ timeSec: ticksToSeconds(startTicks), text: trimmed });
+    if (trimmed) {
+      lines.push({
+        timeSec: ticksToSeconds(startTicks),
+        endSec: ticksToSeconds(endTicks),
+        text: trimmed,
+      });
+    }
     text = "";
   };
 
@@ -98,14 +108,17 @@ export function extractLyrics(
     if (breakBefore !== 0) {
       flush();
       startTicks = ev.ticks;
+      endTicks = ev.ticks;
       text = body;
     } else if (text.length === 0) {
       // Whitespace-only entries never open a line nor set its start time.
       if (body.trim().length === 0) continue;
       startTicks = ev.ticks;
+      endTicks = ev.ticks;
       text = body;
     } else {
       text += body;
+      endTicks = ev.ticks;
     }
     // A trailing break flushes AFTER the body joined the current line, so the
     // next fragment starts a new line at its own tick.
@@ -133,4 +146,32 @@ export function activeLineIndex(lines: LyricLine[], timeSec: number): number {
 export function introCountdown(lines: LyricLine[], timeSec: number): number | null {
   if (lines.length === 0 || lines[0].timeSec <= timeSec) return null;
   return Math.ceil(lines[0].timeSec - timeSec);
+}
+
+/** A gap longer than this after a line finishes is treated as a break. */
+export const INTERLUDE_MIN_SEC = 6;
+/** Seconds before the next line when the "singing in" countdown reappears. */
+export const INTERLUDE_COUNTDOWN_SEC = 5;
+
+export interface InterludeInfo {
+  /** True while the song sits in an instrumental break between two lines. */
+  active: boolean;
+  /** Seconds until the next line starts (0 when no break is active). */
+  untilNextSec: number;
+}
+
+// Detect an instrumental break between two lyric lines: the current line has
+// been sung (past its last syllable) but the next one is still far away. Small
+// gaps are just breaths and do not count.
+export function interludeInfo(lines: LyricLine[], timeSec: number): InterludeInfo {
+  const active = activeLineIndex(lines, timeSec);
+  if (active < 0) return { active: false, untilNextSec: 0 };
+  const current = lines[active];
+  const next = lines[active + 1];
+  if (!next) return { active: false, untilNextSec: 0 };
+  const sungEnd = current.endSec ?? current.timeSec;
+  if (next.timeSec - sungEnd <= INTERLUDE_MIN_SEC) return { active: false, untilNextSec: 0 };
+  // A short tail lets the last syllable finish before the break appears.
+  if (timeSec <= sungEnd + 0.5) return { active: false, untilNextSec: 0 };
+  return { active: true, untilNextSec: next.timeSec - timeSec };
 }

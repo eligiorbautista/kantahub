@@ -1,7 +1,7 @@
 // tests/lyrics.test.ts
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { extractLyrics, activeLineIndex, type LyricLine } from "@/lib/lyrics";
+import { extractLyrics, activeLineIndex, interludeInfo, type LyricLine } from "@/lib/lyrics";
 
 const lines: LyricLine[] = [
   { timeSec: 0, text: "First" },
@@ -18,6 +18,40 @@ describe("activeLineIndex", () => {
   it("returns -1 before the first line and for empty input", () => {
     expect(activeLineIndex(lines, -1)).toBe(-1);
     expect(activeLineIndex([], 5)).toBe(-1);
+  });
+});
+
+describe("interludeInfo", () => {
+  const withGap: LyricLine[] = [
+    { timeSec: 0, endSec: 2, text: "One" },
+    { timeSec: 20, endSec: 22, text: "Two" }, // 18s of instrumental after line one
+  ];
+
+  it("is inactive while a line is still being sung", () => {
+    expect(interludeInfo(withGap, 1).active).toBe(false);
+  });
+
+  it("ignores short breaths between lines", () => {
+    const shortGap: LyricLine[] = [
+      { timeSec: 0, endSec: 2, text: "One" },
+      { timeSec: 5, endSec: 6, text: "Two" },
+    ];
+    expect(interludeInfo(shortGap, 3).active).toBe(false);
+  });
+
+  it("is active in a long break and reports the time to the next line", () => {
+    const info = interludeInfo(withGap, 10);
+    expect(info.active).toBe(true);
+    expect(info.untilNextSec).toBe(10);
+  });
+
+  it("does not fire immediately after the last syllable", () => {
+    expect(interludeInfo(withGap, 2.2).active).toBe(false);
+  });
+
+  it("is inactive before the first line and after the last", () => {
+    expect(interludeInfo(withGap, -1).active).toBe(false);
+    expect(interludeInfo(withGap, 25).active).toBe(false);
   });
 });
 
@@ -43,16 +77,32 @@ function buildKar(events: Array<{ delta: number; text: string }>): Buffer {
   return Buffer.concat([header, mtrk]);
 }
 
+// The line-splitting tests care about the display text and start time; the
+// syllable end time is asserted separately.
+const simple = (ls: LyricLine[]) => ls.map(({ timeSec, text }) => ({ timeSec, text }));
+
 describe("extractLyrics", () => {
   it("collects lyric events converting absolute ticks via the injected callback", () => {
     const buf = buildKar([
       { delta: 0, text: "/Hello" },
       { delta: 96, text: "/World" },
     ]);
-    expect(extractLyrics(buf, (t) => t / 48)).toEqual([
+    expect(simple(extractLyrics(buf, (t) => t / 48))).toEqual([
       { timeSec: 0, text: "Hello" },
       { timeSec: 2, text: "World" },
     ]);
+  });
+
+  it("records the last syllable time as endSec", () => {
+    const buf = buildKar([
+      { delta: 0, text: "Hel" },
+      { delta: 24, text: "lo\n" },
+      { delta: 96, text: "Wor" },
+      { delta: 24, text: "ld\n" },
+    ]);
+    const out = extractLyrics(buf, (t) => t / 24);
+    expect(out[0]).toMatchObject({ timeSec: 0, endSec: 1 });
+    expect(out[1]).toMatchObject({ timeSec: 5, endSec: 6 });
   });
 
   it("merges consecutive fragments into display lines on / and \\n breaks", () => {
@@ -63,7 +113,7 @@ describe("extractLyrics", () => {
       { delta: 24, text: "/Wor" },
       { delta: 0, text: "ld" },
     ]);
-    expect(extractLyrics(buf, (t) => t / 48)).toEqual([
+    expect(simple(extractLyrics(buf, (t) => t / 48))).toEqual([
       { timeSec: 0, text: "Hello" },
       { timeSec: 0.5, text: "World" },
     ]);
@@ -75,7 +125,7 @@ describe("extractLyrics", () => {
       { delta: 96, text: "\r\nTwo" },
       { delta: 96, text: "\r\nThree" },
     ]);
-    expect(extractLyrics(buf, (t) => t / 48)).toEqual([
+    expect(simple(extractLyrics(buf, (t) => t / 48))).toEqual([
       { timeSec: 0, text: "One" },
       { timeSec: 2, text: "Two" },
       { timeSec: 4, text: "Three" },
@@ -87,7 +137,7 @@ describe("extractLyrics", () => {
       { delta: 0, text: "One" },
       { delta: 96, text: "\rTwo" },
     ]);
-    expect(extractLyrics(buf, (t) => t / 48)).toEqual([
+    expect(simple(extractLyrics(buf, (t) => t / 48))).toEqual([
       { timeSec: 0, text: "One" },
       { timeSec: 2, text: "Two" },
     ]);
@@ -102,7 +152,7 @@ describe("extractLyrics", () => {
       { delta: 24, text: "Wor" },
       { delta: 24, text: "ld\n" },
     ]);
-    expect(extractLyrics(buf, (t) => t / 24)).toEqual([
+    expect(simple(extractLyrics(buf, (t) => t / 24))).toEqual([
       { timeSec: 0, text: "Hello" },
       { timeSec: 2, text: "World" },
     ]);
@@ -114,12 +164,12 @@ describe("extractLyrics", () => {
       { delta: 96, text: "Hey" },
       { delta: 96, text: "/" }, // trailing empty line must not appear
     ]);
-    expect(extractLyrics(buf, (t) => t / 48)).toEqual([{ timeSec: 2, text: "Hey" }]);
+    expect(simple(extractLyrics(buf, (t) => t / 48))).toEqual([{ timeSec: 2, text: "Hey" }]);
   });
 
   it("merges every fragment when a file has no break markers", () => {
     const result = extractLyrics(load("with-lyrics.kar"), (t) => t / 480);
-    expect(result).toEqual([{ timeSec: 0, text: "Test Song" }]);
+    expect(simple(result)).toEqual([{ timeSec: 0, text: "Test Song" }]);
   });
 
   it("returns [] for a MIDI with no lyric events", () => {

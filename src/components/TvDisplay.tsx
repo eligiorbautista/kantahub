@@ -42,6 +42,10 @@ type Overlay = "none" | "songbook" | "number" | "queue";
 // Animation delays / durations for the idle equalizer bars (a little bounce).
 const EQ_BARS = [0, 0.35, 0.7, 0.15, 0.55, 0.9, 0.25, 0.65, 0.45];
 
+// How long the post-song score/celebration holds the stage before the next
+// song may start. Long enough to read the score and add another song.
+const SCORE_SECONDS = 8;
+
 export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const { state: player, store, engine, unlockAudio } = usePlayer();
   const { state: room, clockOffset, send } = useRoom(ROOM_ID);
@@ -72,6 +76,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const posRef = useRef(0);
   const lastSeekRef = useRef<number | null>(null);
   const countdownFiredRef = useRef<number | null>(null);
+  const scoreFiredRef = useRef<number | null>(null);
   const roomRef = useRef(room);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -133,7 +138,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
       if (player.currentId) store.stop();
       return;
     }
-    if (phase === "countdown") {
+    if (phase === "countdown" || phase === "score") {
       if (player.isPlaying) store.pause();
       return;
     }
@@ -215,14 +220,32 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     return () => window.clearInterval(timer);
   }, [player.isPlaying, send]);
 
-  // --- Natural song end → advance (with countdown) or stop ---------------
+  // --- Natural song end → hold the stage for the score ---------------
   useEffect(() => {
     if (player.songEndCount === 0) return;
     endedAtRef.current = Date.now();
-    const queue = roomRef.current?.queue ?? [];
-    if (queue.length > 0) void send({ kind: "next" });
-    else void send({ kind: "stop" });
+    // Show the fun score for a beat; the queue is re-checked when that beat
+    // ends, so songs added in the meantime still play.
+    void send({ kind: "beginScore", seconds: SCORE_SECONDS });
   }, [player.songEndCount, send]);
+
+  // --- Score deadline → advance if anything is queued, else stop ----------
+  useEffect(() => {
+    if (!room || room.phase !== "score" || room.scoreEndsAt === null) return;
+    const endsAt = room.scoreEndsAt;
+    if (scoreFiredRef.current === endsAt) return;
+    const tick = () => {
+      if (Date.now() + clockOffset >= endsAt) {
+        scoreFiredRef.current = endsAt;
+        const queue = roomRef.current?.queue ?? [];
+        if (queue.length > 0) void send({ kind: "next" });
+        else void send({ kind: "stop" });
+      }
+    };
+    const timer = window.setInterval(tick, 150);
+    tick();
+    return () => window.clearInterval(timer);
+  }, [room, clockOffset, send]);
 
   // --- Lyrics for the current song ---------------------------------------
   useEffect(() => {
@@ -353,6 +376,10 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   }, [overlay]);
 
   const controlsVisible = overlay === "none" && (!player.isPlaying || nowTick < controlsUntil);
+  const scoreSecondsLeft =
+    room?.scoreEndsAt != null
+      ? Math.max(0, Math.ceil((room.scoreEndsAt - (nowTick + clockOffset)) / 1000))
+      : 0;
 
   return (
     <main
@@ -462,6 +489,15 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
               </div>
               <p className="kh-hint">Scan the QR code or open the controller to add a song</p>
             </div>
+          ) : room.phase === "score" && room.score ? (
+            <TvScore
+              score={room.score}
+              singer={room.currentSinger}
+              title={currentTitle}
+              artist={currentArtist}
+              secondsLeft={scoreSecondsLeft}
+              hasNext={room.queue.length > 0}
+            />
           ) : (
             <LiveLyrics
               engine={engine}
@@ -600,6 +636,65 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
         </OverlayShell>
       )}
     </main>
+  );
+}
+
+// Post-song celebration: the cosmetic fun score plus the beat before the next
+// song. Deliberately labeled as fun-only — Kantahub never captures audio.
+function TvScore({
+  score,
+  singer,
+  title,
+  artist,
+  secondsLeft,
+  hasNext,
+}: {
+  score: { value: number; reaction: string };
+  singer: string;
+  title: string;
+  artist: string;
+  secondsLeft: number;
+  hasNext: boolean;
+}) {
+  return (
+    <div
+      data-testid="tv-score"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "1.4vh",
+        textAlign: "center",
+        width: "100%",
+      }}
+    >
+      <p style={{ margin: 0, fontSize: "2.6vh", letterSpacing: "0.3em", textTransform: "uppercase", opacity: 0.7 }}>
+        Score
+      </p>
+      <p
+        style={{
+          margin: 0,
+          fontSize: "clamp(9vh, 18vw, 26vh)",
+          fontWeight: 900,
+          lineHeight: 1,
+          color: "#fbbf24",
+          textShadow: "0 0.6vh 3vh rgba(0,0,0,0.85)",
+        }}
+      >
+        {score.value}
+      </p>
+      <p style={{ margin: 0, fontSize: "clamp(3vh, 5vw, 6.5vh)", fontWeight: 800 }}>{score.reaction}</p>
+      <p style={{ margin: 0, fontSize: "2.6vh", opacity: 0.85 }}>
+        {singer ? `${singer} — ` : ""}
+        {songLabel({ title, artist })}
+      </p>
+      <p data-testid="tv-score-next" style={{ margin: 0, fontSize: "2.6vh", opacity: 0.75 }}>
+        {hasNext ? `Next song in ${secondsLeft}…` : "That was the last song in the queue"}
+      </p>
+      <p style={{ margin: 0, fontSize: "1.6vh", opacity: 0.4 }}>
+        For fun only — Kantahub never listens to your microphone.
+      </p>
+    </div>
   );
 }
 

@@ -368,7 +368,8 @@ const menuStyle: CSSProperties = {
 
 const menuActions: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(8.5rem, 1fr))",
+  // Wide enough that buttons never clip; narrow screens fall back to one column.
+  gridTemplateColumns: "repeat(auto-fit, minmax(10rem, 1fr))",
   gap: "1.2vh",
   marginTop: "1.4vh",
 };
@@ -383,7 +384,7 @@ const actionStyle = (bg: string): CSSProperties => ({
   color: "#fff",
   cursor: "pointer",
   width: "100%",
-  whiteSpace: "nowrap",
+  textAlign: "center",
 });
 
 export default Songbook;

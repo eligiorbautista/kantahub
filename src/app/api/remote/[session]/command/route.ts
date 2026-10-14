@@ -22,6 +22,7 @@ const KINDS = new Set<RemoteCommand["kind"]>([
   "setSinger",
   "clearQueue",
   "beginPlayback",
+  "beginScore",
   "progress",
 ]);
 
@@ -55,6 +56,8 @@ function isRemoteCommand(value: unknown): value is RemoteCommand {
       return isNum(cmd.offsetSec);
     case "setSinger":
       return isStr(cmd.singer);
+    case "beginScore":
+      return isNum(cmd.seconds);
     case "progress":
       return isNum(cmd.positionSec);
     default:

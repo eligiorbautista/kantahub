@@ -20,6 +20,12 @@ export class SpessaEngine implements PlayerEngine {
   // the intro countdown would freeze. We poll the sequencer's currentTime on
   // requestAnimationFrame while playing and emit it as "time".
   private timeRaf: number | null = null;
+  // SpessaSynth reports "songEnded" from the worklet's pause reply, and the
+  // worklet's isFinished flag can still be set from the PREVIOUS song. loadSong
+  // pauses the sequencer right after loading, so a stale reply would look like
+  // the new song instantly ending. Ignore songEnd events for a moment after a
+  // load (no real song ends that fast).
+  private ignoreSongEndUntil = 0;
   private listeners: Record<PlayerEvent, Listener[]> = {
     lyric: [],
     time: [],
@@ -64,7 +70,10 @@ export class SpessaEngine implements PlayerEngine {
     this.synth = synth;
 
     const seq = new Sequencer(synth);
-    seq.eventHandler.addEvent("songEnded", "player", () => this.emit("songEnd", null));
+    seq.eventHandler.addEvent("songEnded", "player", () => {
+      if (performance.now() < this.ignoreSongEndUntil) return;
+      this.emit("songEnd", null);
+    });
     seq.eventHandler.addEvent("timeChange", "player", (t: number) => this.emit("time", t));
     seq.eventHandler.addEvent("songChange", "player", (data) => this.emit("state", data));
     seq.eventHandler.addEvent("textEvent", "player", (data) => {
@@ -77,6 +86,7 @@ export class SpessaEngine implements PlayerEngine {
 
   async loadSong(buf: ArrayBuffer, fileName: string): Promise<void> {
     await this.ready();
+    this.ignoreSongEndUntil = performance.now() + 1500;
     this.seq!.loadNewSongList([{ binary: buf, fileName }]);
     // loadNewSongList queues playback; keep control explicit.
     this.seq!.pause();

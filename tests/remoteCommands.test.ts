@@ -14,6 +14,8 @@ function makeState(patch: Partial<RemoteState> = {}): RemoteState {
     positionSec: 0,
     seekNonce: 0,
     countdownEndsAt: null,
+    score: null,
+    scoreEndsAt: null,
     serverNow: 0,
     lyricOffsetSec: 0,
     volume: 0.8,
@@ -100,6 +102,63 @@ describe("applyCommand", () => {
     expect(paused.currentId).toBe("a");
     const resumed = applyCommand(paused, { kind: "resume" });
     expect(resumed.isPlaying).toBe(true);
+  });
+
+  it("resume with nothing on stage starts the queue head", () => {
+    const s0 = makeState({ queue: [{ songId: "a", singer: "Juan" }, { songId: "b", singer: "" }] });
+    const s1 = applyCommand(s0, { kind: "resume" });
+    expect(s1.currentId).toBe("a");
+    expect(s1.currentSinger).toBe("Juan");
+    expect(s1.isPlaying).toBe(true);
+    expect(s1.phase).toBe("playing");
+    expect(s1.queue).toEqual([{ songId: "b", singer: "" }]);
+  });
+
+  it("resume with an empty queue and nothing on stage is a no-op", () => {
+    const s0 = makeState();
+    expect(applyCommand(s0, { kind: "resume" })).toBe(s0);
+  });
+
+  it("beginScore holds the stage with a cosmetic score and a deadline", () => {
+    const s0 = makeState({ currentId: "a", currentSinger: "Juan", phase: "playing", isPlaying: true, positionSec: 30 });
+    const s1 = applyCommand(s0, { kind: "beginScore", seconds: 8 }, NOW, () => 1);
+    expect(s1.phase).toBe("score");
+    expect(s1.isPlaying).toBe(false);
+    expect(s1.currentId).toBe("a");
+    expect(s1.score).toEqual({ value: 100, reaction: "Ang galing!" });
+    expect(s1.scoreEndsAt).toBe(NOW + 8000);
+  });
+
+  it("beginScore with nothing on stage returns to idle", () => {
+    expect(applyCommand(makeState(), { kind: "beginScore", seconds: 8 }, NOW).phase).toBe("idle");
+  });
+
+  it("resume during the score phase starts the next queued song", () => {
+    const s0 = makeState({
+      currentId: "a",
+      phase: "score",
+      score: { value: 90, reaction: "Solid!" },
+      scoreEndsAt: NOW,
+      queue: [{ songId: "b", singer: "Ana" }],
+    });
+    const s1 = applyCommand(s0, { kind: "resume" }, NOW);
+    expect(s1.currentId).toBe("b");
+    expect(s1.currentSinger).toBe("Ana");
+    expect(s1.phase).toBe("playing");
+    expect(s1.score).toBeNull();
+  });
+
+  it("next clears the score and plays the queue head", () => {
+    const s0 = makeState({
+      currentId: "a",
+      phase: "score",
+      score: { value: 90, reaction: "Solid!" },
+      queue: [{ songId: "b", singer: "" }],
+    });
+    const s1 = applyCommand(s0, { kind: "next" }, NOW);
+    expect(s1.phase).toBe("playing");
+    expect(s1.score).toBeNull();
+    expect(s1.currentId).toBe("b");
   });
 
   it("stop clears the stage", () => {

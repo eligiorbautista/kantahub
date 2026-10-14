@@ -7,7 +7,7 @@
 // commands and mirrors the shared state.
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRoom } from "@/lib/useRoom";
-import { ROOM_CODE, ROOM_ID } from "@/lib/room";
+import { ROOM_ID } from "@/lib/room";
 import { searchSongs, resolveSongs, findByNumber, songLabel } from "@/lib/songsClient";
 import type { SongMeta } from "@/lib/scanner";
 import { branding } from "@/lib/branding";
@@ -25,9 +25,6 @@ import {
 } from "@/components/Icons";
 
 const PAGE_SIZE = 40;
-
-/** Round to one decimal so repeated ±0.1 taps do not drift into 0.30000004. */
-const round1 = (n: number) => Math.round(n * 10) / 10;
 
 export function Controller() {
   const { state: room, send, connected } = useRoom(ROOM_ID);
@@ -146,9 +143,12 @@ export function Controller() {
       }}
     >
       <header className="ctl-header" style={{ display: "flex", alignItems: "center", gap: "0.8rem", flexWrap: "wrap" }}>
-        <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800 }}>{branding.name}</h1>
+        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+          <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800 }}>{branding.name}</h1>
+          <span style={{ fontSize: "0.72rem", opacity: 0.6, letterSpacing: "0.08em" }}>{branding.byline}</span>
+        </div>
         <span
-          title={connected ? "Connected" : "Reconnecting…"}
+          title={connected ? "Connected to the room" : "Reconnecting…"}
           style={{
             width: "0.6rem",
             height: "0.6rem",
@@ -156,7 +156,7 @@ export function Controller() {
             background: connected ? "#4ade80" : "#f87171",
           }}
         />
-        <span style={{ opacity: 0.6, fontSize: "0.9rem" }}>Room {ROOM_CODE}</span>
+        <span style={{ opacity: 0.65, fontSize: "0.9rem" }}>{connected ? "Online" : "Offline"}</span>
         <a href="/tv" style={{ marginLeft: "auto", color: "#93c5fd", fontSize: "0.9rem" }}>
           TV screen
         </a>
@@ -178,6 +178,12 @@ export function Controller() {
               })}`
             : "Nothing playing"}
         </p>
+        {room?.phase === "score" && room.score && (
+          <p style={{ margin: "0 0 0.8rem", fontSize: "0.95rem", color: "#fbbf24", fontWeight: 700 }}>
+            Score {room.score.value} — {room.score.reaction}
+            {room.queue.length > 0 ? " · next song coming up" : " · queue is empty"}
+          </p>
+        )}
         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", alignItems: "center" }}>
           <button type="button" onClick={() => void send({ kind: "restart" })} style={btn} aria-label="Restart">
             <PrevIcon size={20} /> Restart
@@ -209,54 +215,6 @@ export function Controller() {
               style={{ width: "8rem" }}
             />
           </label>
-        </div>
-
-        {/* Lyrics sync: nudge the TV highlight to match the TV's audio latency.
-            Kept on the controller (not the TV) so it cannot be bumped by accident
-            while someone is singing. */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            flexWrap: "wrap",
-            marginTop: "0.9rem",
-            paddingTop: "0.7rem",
-            borderTop: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <span style={{ fontSize: "0.85rem", opacity: 0.7 }}>Lyrics sync</span>
-          <button
-            type="button"
-            style={btnSmall}
-            onClick={() =>
-              void send({ kind: "setLyricOffset", offsetSec: round1((room?.lyricOffsetSec ?? 0) - 0.1) })
-            }
-          >
-            −0.1 later
-          </button>
-          <span
-            style={{
-              minWidth: "5ch",
-              textAlign: "center",
-              fontVariantNumeric: "tabular-nums",
-              fontWeight: 700,
-            }}
-          >
-            {(room?.lyricOffsetSec ?? 0).toFixed(1)}s
-          </span>
-          <button
-            type="button"
-            style={btnSmall}
-            onClick={() =>
-              void send({ kind: "setLyricOffset", offsetSec: round1((room?.lyricOffsetSec ?? 0) + 0.1) })
-            }
-          >
-            +0.1 earlier
-          </button>
-          <button type="button" style={btnSmall} onClick={() => void send({ kind: "setLyricOffset", offsetSec: 0 })}>
-            Reset
-          </button>
         </div>
       </section>
 

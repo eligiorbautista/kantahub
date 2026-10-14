@@ -1,8 +1,10 @@
 // src/lib/remoteCommands.ts
 // Command vocabulary shared by the controller/TV POST endpoint and the pure
 // state transition function. Kept framework-free so it can be unit-tested in
-// plain node (see tests/remoteCommands.test.ts). `now` is injected so the
-// server-authoritative countdown deadline is deterministic in tests.
+// plain node (see tests/remoteCommands.test.ts). `now` and `random` are injected
+// so the server-authoritative deadlines and the cosmetic score are deterministic
+// in tests.
+import { rollScore } from "@/lib/score";
 import type { RemoteState } from "@/lib/remoteStore";
 
 export type RemoteCommand =
@@ -21,6 +23,7 @@ export type RemoteCommand =
   | { kind: "setSinger"; singer: string }
   | { kind: "clearQueue" }
   | { kind: "beginPlayback" }
+  | { kind: "beginScore"; seconds: number }
   | { kind: "progress"; positionSec: number };
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -34,6 +37,26 @@ function idle(state: RemoteState): RemoteState {
     isPlaying: false,
     positionSec: 0,
     countdownEndsAt: null,
+    score: null,
+    scoreEndsAt: null,
+  };
+}
+
+/** Pop the queue head onto the stage (used by `next` and by "play the queue"). */
+function advanceTo(state: RemoteState, countdownSec: number, now: number): RemoteState {
+  const [entry, ...rest] = state.queue;
+  if (!entry) return idle(state);
+  return {
+    ...state,
+    queue: rest,
+    currentId: entry.songId,
+    currentSinger: entry.singer,
+    phase: countdownSec > 0 ? "countdown" : "playing",
+    isPlaying: countdownSec <= 0,
+    positionSec: 0,
+    countdownEndsAt: countdownSec > 0 ? now + countdownSec * 1000 : null,
+    score: null,
+    scoreEndsAt: null,
   };
 }
 
@@ -41,6 +64,7 @@ export function applyCommand(
   state: RemoteState,
   cmd: RemoteCommand,
   now: number = Date.now(),
+  random: () => number = Math.random,
 ): RemoteState {
   switch (cmd.kind) {
     case "enqueue": {
@@ -81,28 +105,23 @@ export function applyCommand(
         isPlaying: sec <= 0,
         positionSec: 0,
         countdownEndsAt: sec > 0 ? now + sec * 1000 : null,
+        score: null,
+        scoreEndsAt: null,
       };
     }
-    case "next": {
-      const [entry, ...rest] = state.queue;
-      if (!entry) return idle(state);
-      const sec = cmd.countdownSec ?? 0;
-      return {
-        ...state,
-        queue: rest,
-        currentId: entry.songId,
-        currentSinger: entry.singer,
-        phase: sec > 0 ? "countdown" : "playing",
-        isPlaying: sec <= 0,
-        positionSec: 0,
-        countdownEndsAt: sec > 0 ? now + sec * 1000 : null,
-      };
-    }
+    case "next":
+      return advanceTo(state, cmd.countdownSec ?? 0, now);
     case "pause":
       return { ...state, isPlaying: false };
-    case "resume":
-      if (!state.currentId) return state;
-      return { ...state, isPlaying: true, phase: "playing", countdownEndsAt: null };
+    case "resume": {
+      // "Play" also means "start the queue" when nothing is on stage, or when
+      // the last song just ended and is only being scored.
+      if (!state.currentId || state.phase === "score") {
+        if (state.queue.length === 0) return state;
+        return advanceTo(state, 0, now);
+      }
+      return { ...state, isPlaying: true, phase: "playing", countdownEndsAt: null, score: null, scoreEndsAt: null };
+    }
     case "stop":
       return idle(state);
     case "restart":
@@ -114,6 +133,8 @@ export function applyCommand(
         isPlaying: true,
         phase: "playing",
         countdownEndsAt: null,
+        score: null,
+        scoreEndsAt: null,
       };
     case "seek":
       return { ...state, positionSec: Math.max(0, cmd.sec), seekNonce: state.seekNonce + 1 };
@@ -129,6 +150,22 @@ export function applyCommand(
     case "beginPlayback":
       if (!state.currentId) return state;
       return { ...state, phase: "playing", isPlaying: true, positionSec: 0, countdownEndsAt: null };
+    case "beginScore": {
+      // A song just ended: hold the stage for a beat, show the fun score, and
+      // let the queue be topped up before the next song is chosen.
+      if (!state.currentId) return idle(state);
+      const seconds = Math.max(1, cmd.seconds);
+      const rolled = rollScore(random);
+      return {
+        ...state,
+        phase: "score",
+        isPlaying: false,
+        positionSec: 0,
+        countdownEndsAt: null,
+        score: { value: rolled.score, reaction: rolled.reaction },
+        scoreEndsAt: now + seconds * 1000,
+      };
+    }
     case "progress":
       // The TV reports its position; ignore stale reports while paused.
       if (!state.isPlaying) return state;

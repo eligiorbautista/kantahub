@@ -27,6 +27,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Local media / song library (mounted volumes, never commit)
+/songs/
+/sound/
+/media/
+!songs/.gitkeep
+!sound/.gitkeep
+!media/.gitkeep
+
 # AI tooling artifacts (never commit)
 /docs/superpowers/
 /.superpowers/

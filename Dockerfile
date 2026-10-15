@@ -30,6 +30,7 @@ ENV HOSTNAME=0.0.0.0
 ENV SONGS_DIR=/songs
 ENV SOUND_DIR=/sound
 ENV MEDIA_DIR=/media
+ENV MUSIC_DIR=/music
 ENV INDEX_DIR=/index
 
 # `public` and `.next/static` are not part of standalone output; copy them in.

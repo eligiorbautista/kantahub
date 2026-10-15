@@ -31,9 +31,11 @@ next-env.d.ts
 /songs/
 /sound/
 /media/
+/music/
 !songs/.gitkeep
 !sound/.gitkeep
 !media/.gitkeep
+!music/.gitkeep
 
 # AI tooling artifacts (never commit)
 /docs/superpowers/

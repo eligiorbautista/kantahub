@@ -23,6 +23,8 @@ services:
       - ./sound:/sound
       # Optional background images/videos; may be empty.
       - ./media:/media
+      # Optional music: idle background tracks and a score cheer (cheer*.mp3).
+      - ./music:/music
       - kantahub-index:/index
     restart: unless-stopped
 

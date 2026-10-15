@@ -21,6 +21,7 @@ import type { SongMeta } from "@/lib/scanner";
 import type { LyricLine } from "@/lib/lyrics";
 import type { PlayerEngine } from "@/lib/playerCore";
 import { BackgroundMedia } from "@/components/BackgroundMedia";
+import { Confetti } from "@/components/Confetti";
 import { TvLyrics } from "@/components/TvLyrics";
 import { Songbook } from "@/components/Songbook";
 import { NumberPad } from "@/components/NumberPad";
@@ -44,8 +45,15 @@ type Overlay = "none" | "songbook" | "number" | "queue";
 const EQ_BARS = [0, 0.35, 0.7, 0.15, 0.55, 0.9, 0.25, 0.65, 0.45];
 
 // How long the post-song score/celebration holds the stage before the next
-// song may start. Long enough to read the score and add another song.
-const SCORE_SECONDS = 8;
+// song may start, when no cheer sound is provided. With a cheer in the optional
+// music volume the score lasts exactly as long as that file, so the two finish
+// together.
+const DEFAULT_SCORE_SECONDS = 8;
+/** Clamp for a cheer-derived score length, so an odd file cannot break the flow. */
+const MIN_SCORE_SECONDS = 5;
+const MAX_SCORE_SECONDS = 25;
+/** Idle background music plays a little quieter than the karaoke. */
+const IDLE_VOLUME_FACTOR = 0.6;
 
 export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const { state: player, store, engine, unlockAudio, audioError } = usePlayer();
@@ -61,6 +69,17 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const [number, setNumber] = useState("");
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [controlsUntil, setControlsUntil] = useState(0);
+  const [music, setMusic] = useState<{ idle: string[]; cheer: string | null }>({ idle: [], cheer: null });
+  const [cheerSeconds, setCheerSeconds] = useState<number | null>(null);
+  // Idle background music and the score cheer are plain <audio> elements, kept
+  // out of the karaoke engine so they work on every origin (including a TV on
+  // plain http). They live in refs and are created lazily by the effects below.
+  const idleAudioRef = useRef<HTMLAudioElement | null>(null);
+  const cheerAudioRef = useRef<HTMLAudioElement | null>(null);
+  const idleTrackRef = useRef<string | null>(null);
+  const cheerScoreRef = useRef<number | null>(null);
+  /** The score lasts as long as the cheer sound, when one is provided. */
+  const scoreSeconds = cheerSeconds ?? DEFAULT_SCORE_SECONDS;
 
   const feedbackTimer = useRef<number | null>(null);
   const showFeedback = useCallback((msg: string | null) => {
@@ -137,8 +156,8 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     endedAtRef.current = Date.now();
     // Show the fun score for a beat; the queue is re-checked when that beat
     // ends, so songs added in the meantime still play.
-    void send({ kind: "beginScore", seconds: SCORE_SECONDS });
-  }, [player.songEndCount, send]);
+    void send({ kind: "beginScore", seconds: scoreSeconds });
+  }, [player.songEndCount, send, scoreSeconds]);
 
   // --- Room → playback mirror -------------------------------------------
   useEffect(() => {
@@ -224,6 +243,109 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     const volume = room?.volume;
     if (engine && volume !== undefined) engine.setVolume(volume);
   }, [engine, room?.volume]);
+
+  // --- Optional music volume: idle background tracks + the score cheer -----
+  // `music/` is optional; when it is absent everything below simply no-ops.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/music")
+      .then((res) => (res.ok ? res.json() : { idle: [], cheer: null }))
+      .then((data: { idle?: string[]; cheer?: string | null }) => {
+        if (!cancelled) setMusic({ idle: data.idle ?? [], cheer: data.cheer ?? null });
+      })
+      .catch(() => {
+        // No music volume mounted: nothing to play.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The score lasts exactly as long as the cheer sound, so the cheer and the
+  // score screen finish together. Read from the file's own metadata.
+  useEffect(() => {
+    if (!music.cheer) return;
+    const probe = new Audio();
+    probe.preload = "metadata";
+    probe.src = `/api/music?file=${encodeURIComponent(music.cheer)}`;
+    const onMetadata = () => {
+      const seconds = probe.duration;
+      if (Number.isFinite(seconds) && seconds > 0) {
+        setCheerSeconds(Math.min(MAX_SCORE_SECONDS, Math.max(MIN_SCORE_SECONDS, Math.round(seconds))));
+      }
+    };
+    probe.addEventListener("loadedmetadata", onMetadata, { once: true });
+    return () => {
+      probe.removeEventListener("loadedmetadata", onMetadata);
+      probe.src = "";
+    };
+  }, [music.cheer]);
+
+  const idleStage = !room?.currentId;
+
+  // Idle background music: one shuffled track while nothing is on stage, and it
+  // gets out of the way the moment a song starts.
+  useEffect(() => {
+    if (!idleStage || music.idle.length === 0) {
+      idleAudioRef.current?.pause();
+      return;
+    }
+    let player = idleAudioRef.current;
+    if (!player) {
+      player = new Audio();
+      player.loop = true;
+      idleAudioRef.current = player;
+    }
+    player.volume = Math.min(1, Math.max(0, (room?.volume ?? 0.8) * IDLE_VOLUME_FACTOR));
+    const current = idleTrackRef.current;
+    if (!current || !music.idle.includes(current)) {
+      const track = music.idle[Math.floor(Math.random() * music.idle.length)];
+      idleTrackRef.current = track;
+      player.src = `/api/music?file=${encodeURIComponent(track)}`;
+    }
+    void player.play().catch(() => {
+      // Autoplay is gated until the first gesture; the retry below handles it.
+    });
+  }, [idleStage, music.idle, room?.volume]);
+
+  // Any key press or tap is a chance to start music the browser blocked.
+  useEffect(() => {
+    const retry = () => {
+      const player = idleAudioRef.current;
+      if (idleStage && player && player.paused && player.src) {
+        void player.play().catch(() => {});
+      }
+    };
+    window.addEventListener("pointerdown", retry);
+    window.addEventListener("keydown", retry);
+    return () => {
+      window.removeEventListener("pointerdown", retry);
+      window.removeEventListener("keydown", retry);
+    };
+  }, [idleStage]);
+
+  // The cheer plays once per score, alongside the confetti. `scoreEndsAt`
+  // identifies one score instance, so re-renders do not restart it.
+  const scoreKey = room?.phase === "score" ? room.scoreEndsAt : null;
+  useEffect(() => {
+    if (scoreKey === null || !music.cheer) {
+      cheerAudioRef.current?.pause();
+      cheerScoreRef.current = null;
+      return;
+    }
+    if (cheerScoreRef.current === scoreKey) return;
+    cheerScoreRef.current = scoreKey;
+    let player = cheerAudioRef.current;
+    if (!player) {
+      player = new Audio();
+      cheerAudioRef.current = player;
+    }
+    player.volume = Math.min(1, Math.max(0, room?.volume ?? 0.8));
+    player.src = `/api/music?file=${encodeURIComponent(music.cheer)}`;
+    void player.play().catch(() => {
+      // Needs a gesture first; the score screen still works without it.
+    });
+  }, [scoreKey, music.cheer, room?.volume]);
 
   // --- Report our position so controllers can show progress --------------
   useEffect(() => {
@@ -409,6 +531,8 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
       }}
     >
       <BackgroundMedia />
+      {/* Celebration confetti while the post-song score is on screen. */}
+      <Confetti active={room?.phase === "score" && !!room.score} />
       {/* Readability gradient behind the lyrics. */}
       <div
         aria-hidden="true"

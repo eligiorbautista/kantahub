@@ -31,7 +31,9 @@ next-env.d.ts
 /songs/
 /sound/
 /media/
-/music/
+# `music/*` (rather than `music/`) so the .gitkeep below can be re-included:
+# git will not descend into a fully ignored directory.
+/music/*
 !songs/.gitkeep
 !sound/.gitkeep
 !media/.gitkeep

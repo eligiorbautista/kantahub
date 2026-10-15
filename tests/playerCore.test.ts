@@ -31,6 +31,7 @@ describe("engine event bridging", () => {
       setTranspose: vi.fn(),
       muteChannel: vi.fn(),
       currentTime: () => 0,
+      isRunning: () => true,
       on: (evt, cb) => {
         cbs[evt] = cb;
       },
@@ -111,6 +112,7 @@ describe("stale async guards", () => {
       setTranspose: vi.fn(),
       muteChannel: vi.fn(),
       currentTime: () => 0,
+      isRunning: () => true,
       on: vi.fn(),
     } as PlayerEngine & { play: ReturnType<typeof vi.fn> };
   }

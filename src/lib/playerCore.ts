@@ -17,6 +17,12 @@ export interface PlayerEngine {
   setTranspose(semis: number): void;
   muteChannel(ch: number, muted: boolean): void;
   currentTime(): number;
+  /**
+   * True while the audio context is actually running. Browsers keep it
+   * suspended until a user gesture, and a TV can suspend it later; the UI uses
+   * this to tell the user to press a key instead of showing frozen lyrics.
+   */
+  isRunning(): boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface mandated by spec
   on(evt: PlayerEvent, cb: (p?: any) => void): void;
 }

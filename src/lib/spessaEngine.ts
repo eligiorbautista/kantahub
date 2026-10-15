@@ -166,6 +166,11 @@ export class SpessaEngine implements PlayerEngine {
     return this.seq?.currentTime ?? 0;
   }
 
+  /** True while the AudioContext is running (a suspended one has a frozen clock). */
+  isRunning(): boolean {
+    return this.ctx.state === "running";
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- payload type follows the engine contract
   on(evt: PlayerEvent, cb: (p?: any) => void): void {
     this.listeners[evt].push(cb);

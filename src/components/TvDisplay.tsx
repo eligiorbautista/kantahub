@@ -91,16 +91,9 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   // A "refresh all" from the controller reloads this screen too.
   useReloadOnDemand(room?.reloadNonce);
 
-  // Unlock the AudioContext on the first user gesture (remote OK / click).
-  useEffect(() => {
-    const once = () => unlockAudio();
-    window.addEventListener("pointerdown", once, { once: true });
-    window.addEventListener("keydown", once, { once: true });
-    return () => {
-      window.removeEventListener("pointerdown", once);
-      window.removeEventListener("keydown", once);
-    };
-  }, [unlockAudio]);
+  // Audio unlock is owned by PlayerProvider: it listens for any gesture for the
+  // whole session, so a hard refresh (which resets the gesture state) only needs
+  // one key press instead of silently never starting the sound.
 
   // Refreshing or closing the TV page means the player is gone, so tell the
   // room to stop: every device returns to the idle state instead of the song
@@ -380,6 +373,13 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   }, [overlay]);
 
   const controlsVisible = overlay === "none" && (!player.isPlaying || nowTick < controlsUntil);
+  // A song is on stage but the TV cannot make sound yet. Browsers keep the
+  // audio context suspended until a gesture (and a TV can suspend it later), so
+  // the engine clock is frozen and the lyrics/countdown would sit still. Tell
+  // the user to press a key — one press resumes the context and the song starts.
+  // Before the engine exists, the store's unlock flag is the only signal.
+  const audioRunning = engine ? engine.isRunning() : player.audioUnlocked;
+  const needsGesture = !!room?.currentId && !audioRunning;
   const scoreSecondsLeft =
     room?.scoreEndsAt != null
       ? Math.max(0, Math.ceil((room.scoreEndsAt - (nowTick + clockOffset)) / 1000))
@@ -515,6 +515,25 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
 
         {/* --- Bottom: queue strip + controls --- */}
         <footer style={{ display: "flex", flexDirection: "column", gap: "1.6vh" }}>
+          {needsGesture && (
+            <p
+              role="status"
+              data-testid="tv-needs-gesture"
+              style={{
+                margin: 0,
+                alignSelf: "center",
+                fontSize: "2.6vh",
+                fontWeight: 700,
+                color: "#fde047",
+                background: "rgba(0,0,0,0.72)",
+                padding: "1.2vh 2.4vh",
+                borderRadius: "1vh",
+                textAlign: "center",
+              }}
+            >
+              Press OK on the remote (or tap the screen) to start the sound
+            </p>
+          )}
           {controlsVisible && (
             <div
               data-testid="tv-controls"

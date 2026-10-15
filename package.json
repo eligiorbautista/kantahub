@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Self-hosted browser karaoke for your home TV: MIDI/KAR playback with synchronized lyrics, a phone remote, and a TV display.",
+  "license": "MIT",
   "keywords": [
     "karaoke",
     "midi",

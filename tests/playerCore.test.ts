@@ -154,6 +154,40 @@ describe("stale async guards", () => {
     expect(store.state().isPlaying).toBe(false);
   });
 
+  it("resumes a paused song in place instead of reloading it", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const engine = mockEngine();
+    const store = createPlayerStore(engine);
+    store.unlockAudio();
+    store.playSong("a");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(engine.play).toHaveBeenCalledTimes(1);
+
+    store.pause();
+    expect(store.resume()).toBe(true);
+    expect(store.state().isPlaying).toBe(true);
+    // The engine already holds the song: resuming must not fetch or reload it,
+    // or the song would audibly jump back to the first bar.
+    expect(engine.play).toHaveBeenCalledTimes(2);
+    expect(engine.loadSong).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses to resume when the engine never loaded that song", async () => {
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: false, status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const engine = mockEngine();
+    const store = createPlayerStore(engine);
+    store.unlockAudio();
+    store.playSong("a"); // the load fails, so the engine holds nothing
+    await new Promise((r) => setTimeout(r, 0));
+    expect(store.resume()).toBe(false);
+    expect(engine.play).not.toHaveBeenCalled();
+  });
+
   it("a stale failure does not clobber the newer song's state", async () => {
     const fetchMock = vi
       .fn()

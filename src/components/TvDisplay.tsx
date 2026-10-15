@@ -126,6 +126,20 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     store.playSong(id);
   }, [engine, store]);
 
+  // --- Natural song end → hold the stage for the score ---------------
+  // Declared BEFORE the room→playback mirror on purpose: effects run in
+  // declaration order, and the mirror reads endedAtRef to tell "the song ended
+  // and the score is on its way" from "the room wants playback we are not
+  // doing". With the mirror first, it would see endedAtRef still null and
+  // restart the song it just finished.
+  useEffect(() => {
+    if (player.songEndCount === 0) return;
+    endedAtRef.current = Date.now();
+    // Show the fun score for a beat; the queue is re-checked when that beat
+    // ends, so songs added in the meantime still play.
+    void send({ kind: "beginScore", seconds: SCORE_SECONDS });
+  }, [player.songEndCount, send]);
+
   // --- Room → playback mirror -------------------------------------------
   useEffect(() => {
     if (!room) return;
@@ -153,13 +167,19 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     if (wantPlaying && !player.isPlaying) {
       // A song that just ended leaves the room "playing" for a moment while the
       // next/stop command is in flight. Suppress the resume only for that short
-      // window, then recover by (re)starting the song, so the TV can never get
-      // stuck showing "paused" while the room says it is playing.
+      // window, then recover so the TV can never get stuck showing "paused"
+      // while the room says it is playing.
       const endedAt = endedAtRef.current;
       if (endedAt !== null && Date.now() - endedAt < 2000) return;
       unlockAudio();
-      if (engine) store.playSong(rid);
-      else pendingRef.current = rid;
+      if (!engine) {
+        pendingRef.current = rid;
+      } else if (!store.resume(rid)) {
+        // The engine holds nothing for this id (a fresh selection, or a load
+        // that failed): load it. A pause/resume of the song already on the
+        // synth takes the branch above and keeps playing where it stopped.
+        store.playSong(rid);
+      }
     } else if (!wantPlaying && player.isPlaying) {
       store.pause();
     }
@@ -216,15 +236,6 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     }, 2000);
     return () => window.clearInterval(timer);
   }, [player.isPlaying, send]);
-
-  // --- Natural song end → hold the stage for the score ---------------
-  useEffect(() => {
-    if (player.songEndCount === 0) return;
-    endedAtRef.current = Date.now();
-    // Show the fun score for a beat; the queue is re-checked when that beat
-    // ends, so songs added in the meantime still play.
-    void send({ kind: "beginScore", seconds: SCORE_SECONDS });
-  }, [player.songEndCount, send]);
 
   // --- Score deadline → advance if anything is queued, else stop ----------
   useEffect(() => {

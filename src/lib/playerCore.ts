@@ -49,6 +49,13 @@ export interface PlayerStore {
   state(): PlayerState;
   unlockAudio(): void;
   playSong(id: string): boolean;
+  /**
+   * Continue the song already loaded in the engine, from where it paused.
+   * Returns false when the engine does not hold `id` (never loaded, load
+   * failed, or a different song is on the synth), so callers can fall back to
+   * playSong(). Never re-fetches, so a pause/resume cannot restart the song.
+   */
+  resume(id?: string): boolean;
   pause(): void;
   stop(): void;
   seek(sec: number): void;
@@ -71,6 +78,9 @@ export function createPlayerStore(engine?: PlayerEngine): PlayerStore {
   // Monotonic token guarding the async song load: any transport action
   // (playSong/pause/stop) invalidates in-flight loads from earlier actions.
   let playToken = 0;
+  // Id of the song the engine actually holds, set once loadSong resolves. Only
+  // a song in this slot can be resumed in place; anything else needs a load.
+  let loadedId: string | null = null;
   const listeners: Array<(s: PlayerState) => void> = [];
 
   function emit() {
@@ -139,6 +149,9 @@ export function createPlayerStore(engine?: PlayerEngine): PlayerStore {
     await engine.loadSong(source, `${id}.mid`);
     // Bail if a newer playSong/pause/stop superseded this request while loading.
     if (token !== playToken) return;
+    // The engine now holds this song, so a later resume() can continue it
+    // instead of reloading from the top.
+    loadedId = id;
     engine.play();
   }
 
@@ -182,8 +195,22 @@ export function createPlayerStore(engine?: PlayerEngine): PlayerStore {
       currentEngine?.pause();
     },
 
+    resume(id?: string) {
+      const target = id ?? state.currentId;
+      // Nothing loaded for this id (never loaded, load failed, or superseded):
+      // the caller must playSong() instead.
+      if (!target || state.currentId !== target || loadedId !== target) return false;
+      if (!state.audioUnlocked) return false;
+      if (state.isPlaying) return true;
+      state = { ...state, isPlaying: true };
+      emit();
+      currentEngine?.play();
+      return true;
+    },
+
     stop() {
       playToken += 1;
+      loadedId = null;
       state = { ...state, isPlaying: false, positionSec: 0, currentId: null, currentLyric: null };
       emit();
       currentEngine?.stop();

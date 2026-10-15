@@ -48,7 +48,7 @@ const EQ_BARS = [0, 0.35, 0.7, 0.15, 0.55, 0.9, 0.25, 0.65, 0.45];
 const SCORE_SECONDS = 8;
 
 export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
-  const { state: player, store, engine, unlockAudio } = usePlayer();
+  const { state: player, store, engine, unlockAudio, audioError } = usePlayer();
   const { state: room, clockOffset, send } = useRoom(ROOM_ID);
 
   const [songsById, setSongsById] = useState<Map<string, SongMeta>>(new Map());
@@ -515,7 +515,27 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
 
         {/* --- Bottom: queue strip + controls --- */}
         <footer style={{ display: "flex", flexDirection: "column", gap: "1.6vh" }}>
-          {needsGesture && (
+          {audioError ? (
+            <p
+              role="alert"
+              data-testid="tv-audio-error"
+              style={{
+                margin: 0,
+                alignSelf: "center",
+                maxWidth: "80vw",
+                fontSize: "2.2vh",
+                fontWeight: 700,
+                color: "#fca5a5",
+                background: "rgba(0,0,0,0.78)",
+                padding: "1.4vh 2.4vh",
+                borderRadius: "1vh",
+                textAlign: "center",
+                lineHeight: 1.35,
+              }}
+            >
+              {audioError}
+            </p>
+          ) : needsGesture ? (
             <p
               role="status"
               data-testid="tv-needs-gesture"
@@ -533,7 +553,7 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
             >
               Press OK on the remote (or tap the screen) to start the sound
             </p>
-          )}
+          ) : null}
           {controlsVisible && (
             <div
               data-testid="tv-controls"

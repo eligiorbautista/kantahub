@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import {
@@ -17,6 +18,7 @@ import {
   type PlayerStore,
 } from "@/lib/playerCore";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wakeLock";
+import { audioUnsupportedMessage, audioWorkletSupported } from "@/lib/audioSupport";
 
 export interface PlayerContextValue {
   state: PlayerState;
@@ -24,6 +26,11 @@ export interface PlayerContextValue {
   engine: PlayerEngine | null;
   /** Call from a real user gesture; resumes the AudioContext and boots the synth. */
   unlockAudio(): void;
+  /**
+   * Set when this browser cannot run the engine at all (no AudioWorklet on a
+   * plain http:// origin). The TV shows this instead of frozen lyrics.
+   */
+  audioError: string | null;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -42,8 +49,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // then. `wantedRef` records that the room asked for sound.
   const gestureSeenRef = useRef(false);
   const wantedRef = useRef(false);
+  // AudioWorklet is absent on insecure origins (a plain http:// LAN address).
+  // Read that as an external, client-only value: the server render and the first
+  // client render agree, and nothing needs to be set from an effect.
+  const workletUnsupported = useSyncExternalStore(
+    () => () => {},
+    () => !audioWorkletSupported(),
+    () => false,
+  );
+  const audioError = workletUnsupported ? audioUnsupportedMessage() : null;
 
   const bootEngine = useCallback(() => {
+    // Browsers hide AudioWorklet on a plain http:// origin. Detect it up front:
+    // building the synth would throw on every song load and the TV would look
+    // frozen with no explanation.
+    if (!audioWorkletSupported()) {
+      return;
+    }
     store.unlockAudio();
     if (engineRef.current) {
       // Already built: make sure a context the TV suspended (screensaver, input
@@ -68,6 +90,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // Bridge store changes (incl. engine lyric/time/songEnd events) into React state.
     return store.subscribe(setState);
   }, [store]);
+
+  // Report an unsupported browser immediately, without waiting for a gesture:
+  // otherwise the TV would show the (misleading) "press a key" hint instead of
+  // the real reason sound can never start on this origin.
 
   // Any gesture (remote OK, arrow key, tap) unlocks audio. Kept attached for the
   // whole session rather than firing once: a TV browser can suspend the context
@@ -111,8 +137,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [bootEngine]);
 
   const value = useMemo<PlayerContextValue>(
-    () => ({ state, store, engine, unlockAudio }),
-    [state, store, engine, unlockAudio],
+    () => ({ state, store, engine, unlockAudio, audioError }),
+    [state, store, engine, unlockAudio, audioError],
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

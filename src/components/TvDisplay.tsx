@@ -71,12 +71,14 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
   const [controlsUntil, setControlsUntil] = useState(0);
   const [music, setMusic] = useState<{ idle: string[]; cheer: string | null }>({ idle: [], cheer: null });
   const [cheerSeconds, setCheerSeconds] = useState<number | null>(null);
+  const [idlePlaying, setIdlePlaying] = useState(false);
   // Idle background music and the score cheer are plain <audio> elements, kept
   // out of the karaoke engine so they work on every origin (including a TV on
   // plain http). They live in refs and are created lazily by the effects below.
   const idleAudioRef = useRef<HTMLAudioElement | null>(null);
   const cheerAudioRef = useRef<HTMLAudioElement | null>(null);
   const idleTrackRef = useRef<string | null>(null);
+  const idleTracksRef = useRef<string[]>([]);
   const cheerScoreRef = useRef<number | null>(null);
   /** The score lasts as long as the cheer sound, when one is provided. */
   const scoreSeconds = cheerSeconds ?? DEFAULT_SCORE_SECONDS;
@@ -283,6 +285,11 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
 
   const idleStage = !room?.currentId;
 
+  // Keep the ended-listener's view of the playlist fresh.
+  useEffect(() => {
+    idleTracksRef.current = music.idle;
+  }, [music.idle]);
+
   // Idle background music: one shuffled track while nothing is on stage, and it
   // gets out of the way the moment a song starts.
   useEffect(() => {
@@ -293,15 +300,35 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
     let player = idleAudioRef.current;
     if (!player) {
       player = new Audio();
-      player.loop = true;
+      player.preload = "auto";
       idleAudioRef.current = player;
+      const el = player;
+      // Track whether music is actually audible: the hint on the idle screen
+      // must disappear the moment it starts, not stay up misleadingly.
+      el.addEventListener("playing", () => setIdlePlaying(true));
+      el.addEventListener("pause", () => setIdlePlaying(false));
+      // Move on to another idle track instead of looping the same one forever.
+      el.addEventListener("ended", () => {
+        setIdlePlaying(false);
+        const tracks = idleTracksRef.current;
+        if (tracks.length === 0) return;
+        const next = tracks[Math.floor(Math.random() * tracks.length)];
+        idleTrackRef.current = next;
+        el.src = `/api/music?file=${encodeURIComponent(next)}`;
+        void el.play().catch(() => {});
+      });
     }
     player.volume = Math.min(1, Math.max(0, (room?.volume ?? 0.8) * IDLE_VOLUME_FACTOR));
     const current = idleTrackRef.current;
     if (!current || !music.idle.includes(current)) {
       const track = music.idle[Math.floor(Math.random() * music.idle.length)];
       idleTrackRef.current = track;
+      // Buffer the track right away — loading needs no gesture, only playback
+      // does — so the first key press starts the music instantly instead of
+      // waiting for the download.
+      player.preload = "auto";
       player.src = `/api/music?file=${encodeURIComponent(track)}`;
+      player.load();
     }
     void player.play().catch(() => {
       // Autoplay is gated until the first gesture; the retry below handles it.
@@ -627,6 +654,14 @@ export function TvDisplay({ controllerUrl }: { controllerUrl: string }) {
                 ))}
               </div>
               <p className="kh-hint">Scan the QR code or open the controller to add a song</p>
+              {/* Browsers refuse to start audible audio until the page has had a
+                  real interaction. Say so, instead of leaving the idle screen
+                  silently music-less. */}
+              {music.idle.length > 0 && !idlePlaying && (
+                <p className="kh-hint" data-testid="tv-music-hint" style={{ color: "#fde047", marginTop: "0.4vh" }}>
+                  Press any key on the remote (or tap the screen) to start the music
+                </p>
+              )}
             </div>
           ) : room.phase === "score" && room.score ? (
             <TvScore

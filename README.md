@@ -10,6 +10,10 @@ as the remote — there is nothing to install on either device.
 > legally obtained MIDI/KAR files and a free SoundFont. It is built for a trusted
 > home network: there is no login, and anyone on your LAN can use it.
 
+| TV screen (`/tv`) | Controller (`/`) |
+|---|---|
+| ![Kantahub TV screen showing synchronized lyrics over a background video](docs/tv-screen.png) | ![Kantahub controller on a phone](docs/controller.png) |
+
 ---
 
 ## Features
@@ -228,8 +232,7 @@ screens.
 
 ## License
 
-_To be decided — add a `LICENSE` file before publishing so others know how they
-may use this._
+[MIT](LICENSE) © Eli Dev
 
 ---
 

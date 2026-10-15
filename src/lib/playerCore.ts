@@ -7,7 +7,13 @@ export type PlayerEvent = "lyric" | "time" | "songEnd" | "state";
 
 export interface PlayerEngine {
   ready(): Promise<void>;
-  loadSong(buf: ArrayBuffer, fileName: string): Promise<void>;
+  /**
+   * When false, the store hands the engine the song id instead of fetching the
+   * raw MIDI bytes (used by engines that stream a file the server prepared).
+   * Defaults to true.
+   */
+  readonly wantsBytes?: boolean;
+  loadSong(source: ArrayBuffer | string, fileName: string): Promise<void>;
   play(): void;
   pause(): void;
   stop(): void;
@@ -119,13 +125,18 @@ export function createPlayerStore(engine?: PlayerEngine): PlayerStore {
   }
 
   async function loadAndPlay(engine: PlayerEngine, id: string, token: number) {
-    const res = await fetch(`/api/songs/${encodeURIComponent(id)}/file`);
-    if (!res.ok) throw new Error(`failed to fetch song ${id}: ${res.status}`);
-    const buf = await res.arrayBuffer();
-    // Check the token BEFORE handing the bytes to the engine: a superseded load
-    // must never replace the song a newer play() already put on the synth.
-    if (token !== playToken) return;
-    await engine.loadSong(buf, `${id}.mid`);
+    // Engines that stream a prepared file only need the id; every other engine
+    // gets the raw MIDI bytes.
+    let source: ArrayBuffer | string = id;
+    if (engine.wantsBytes !== false) {
+      const res = await fetch(`/api/songs/${encodeURIComponent(id)}/file`);
+      if (!res.ok) throw new Error(`failed to fetch song ${id}: ${res.status}`);
+      source = await res.arrayBuffer();
+      // Check the token BEFORE handing the bytes to the engine: a superseded load
+      // must never replace the song a newer play() already put on the synth.
+      if (token !== playToken) return;
+    }
+    await engine.loadSong(source, `${id}.mid`);
     // Bail if a newer playSong/pause/stop superseded this request while loading.
     if (token !== playToken) return;
     engine.play();

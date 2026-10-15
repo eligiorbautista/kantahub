@@ -8,7 +8,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import {
@@ -18,7 +17,7 @@ import {
   type PlayerStore,
 } from "@/lib/playerCore";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wakeLock";
-import { audioUnsupportedMessage, audioWorkletSupported } from "@/lib/audioSupport";
+import { audioWorkletSupported } from "@/lib/audioSupport";
 
 export interface PlayerContextValue {
   state: PlayerState;
@@ -49,40 +48,41 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // then. `wantedRef` records that the room asked for sound.
   const gestureSeenRef = useRef(false);
   const wantedRef = useRef(false);
-  // AudioWorklet is absent on insecure origins (a plain http:// LAN address).
-  // Read that as an external, client-only value: the server render and the first
-  // client render agree, and nothing needs to be set from an effect.
-  const workletUnsupported = useSyncExternalStore(
-    () => () => {},
-    () => !audioWorkletSupported(),
-    () => false,
-  );
-  const audioError = workletUnsupported ? audioUnsupportedMessage() : null;
+  const [audioError, setAudioError] = useState<string | null>(null);
 
   const bootEngine = useCallback(() => {
-    // Browsers hide AudioWorklet on a plain http:// origin. Detect it up front:
-    // building the synth would throw on every song load and the TV would look
-    // frozen with no explanation.
-    if (!audioWorkletSupported()) {
-      return;
-    }
     store.unlockAudio();
     if (engineRef.current) {
       // Already built: make sure a context the TV suspended (screensaver, input
-      // change) comes back.
+      // change) comes back, and retry a playback the browser blocked earlier.
       void (engineRef.current as { resume?: () => Promise<void> }).resume?.();
       return;
     }
-    // Lazy-import keeps SpessaSynth out of the initial page payload.
+    // Lazy-imports keep the synth out of the initial page payload.
     void (async () => {
-      const { SpessaEngine } = await import("@/lib/spessaEngine");
+      if (audioWorkletSupported()) {
+        // Secure origin: use the in-browser synth.
+        const { SpessaEngine } = await import("@/lib/spessaEngine");
+        if (engineRef.current) return;
+        const e = new SpessaEngine();
+        engineRef.current = e;
+        store.attachEngine(e);
+        setEngine(e);
+        await e.resume(); // ctx.resume() — still inside the user gesture
+        e.ready().catch((err) => {
+          console.error("synth init failed:", err);
+          setAudioError("The karaoke engine could not start in this browser.");
+        });
+        return;
+      }
+      // No worklet on this origin (a plain http:// address — most Smart TVs):
+      // play the audio the server rendered instead. No worklet needed.
+      const { AudioElementEngine } = await import("@/lib/audioElementEngine");
       if (engineRef.current) return;
-      const e = new SpessaEngine();
+      const e = new AudioElementEngine((message) => setAudioError(message));
       engineRef.current = e;
       store.attachEngine(e);
       setEngine(e);
-      await e.resume(); // ctx.resume() — still inside the user gesture
-      e.ready().catch((err) => console.error("synth init failed:", err));
     })();
   }, [store]);
 

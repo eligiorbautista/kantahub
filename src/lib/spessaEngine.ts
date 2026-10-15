@@ -84,10 +84,13 @@ export class SpessaEngine implements PlayerEngine {
     this.seq = seq;
   }
 
-  async loadSong(buf: ArrayBuffer, fileName: string): Promise<void> {
+  async loadSong(source: ArrayBuffer | string, fileName: string): Promise<void> {
     await this.ready();
+    if (typeof source === "string") {
+      throw new Error("SpessaEngine needs the song bytes, not an id");
+    }
     this.ignoreSongEndUntil = performance.now() + 1500;
-    this.seq!.loadNewSongList([{ binary: buf, fileName }]);
+    this.seq!.loadNewSongList([{ binary: source, fileName }]);
     // loadNewSongList queues playback; keep control explicit.
     this.seq!.pause();
   }

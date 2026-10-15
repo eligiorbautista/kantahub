@@ -91,5 +91,19 @@ export async function POST(
     const { saveSettings } = await import("@/lib/settings");
     void saveSettings({ lyricOffsetSec: next.lyricOffsetSec });
   }
+
+  // Warm the server-side audio render for whatever is being queued or played, so
+  // the first play does not sit through it. Clients that cannot run the
+  // in-browser synth (a Smart TV on plain http) stream this file instead.
+  const warmId =
+    body.kind === "enqueue" ? body.songId : body.kind === "play" ? (body.songId ?? next.currentId) : null;
+  if (warmId) {
+    void import("@/lib/renderAudio")
+      .then(({ renderSongAudio }) => renderSongAudio(warmId))
+      .catch(() => {
+        // Best-effort: the player renders on demand anyway.
+      });
+  }
+
   return NextResponse.json(updateSession(session, next));
 }

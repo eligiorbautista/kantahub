@@ -39,7 +39,9 @@ COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 
 # The optional HTTPS front door (see https-proxy.mjs) mints its own
 # self-signed certificate, which needs the openssl CLI.
-RUN apk add --no-cache openssl
+# FluidSynth renders a song to audio on the server for clients that cannot run
+# the in-browser Web Audio synth (any plain http:// origin, e.g. a Smart TV).
+RUN apk add --no-cache openssl fluidsynth
 COPY --from=builder --chown=node:node /app/https-proxy.mjs ./https-proxy.mjs
 
 # The persisted library index is written here (backed by a named volume).

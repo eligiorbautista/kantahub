@@ -51,8 +51,3 @@ export function audioWorkletSupported(): boolean {
 export function resetAudioSupportCache(): void {
   cached = null;
 }
-
-/** Human-readable, actionable explanation for the TV screen. */
-export function audioUnsupportedMessage(): string {
-  return "This browser blocks the karaoke engine on a plain http:// address — the audio engine needs https:// or localhost. Fix: open this page on the TV itself, serve the app over https://, or allow this origin in the browser (Chrome: chrome://flags/#unsafely-treat-insecure-origin-as-secure).";
-}

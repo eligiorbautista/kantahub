@@ -26,5 +26,31 @@ services:
       - kantahub-index:/index
     restart: unless-stopped
 
+  # HTTPS front door: browsers only expose the karaoke audio engine
+  # (AudioWorklet) in a secure context, so a plain http:// LAN address cannot
+  # play music. Open the TV/phone at https://<host>:3443 instead; the browser
+  # warns once about the self-signed certificate (Advanced -> Proceed).
+  # The app itself is untouched and still serves plain http on 3005.
+  kantahub-https:
+    image: kantahub:latest
+    container_name: kantahub-https
+    command: ["node", "https-proxy.mjs"]
+    ports:
+      - "3443:3443"
+    environment:
+      # The address clients use; signed into the certificate and used for QR codes.
+      - KANTAHUB_TLS_HOST=${KANTAHUB_TLS_HOST:-192.168.1.2}
+      - TLS_DIR=/tls
+      - TARGET_HOST=kantahub
+      - TARGET_PORT=${KANTAHUB_PORT:-3005}
+    volumes:
+      # Keeps the certificate across restarts, so the browser warning is a
+      # one-time thing per device.
+      - kantahub-tls:/tls
+    depends_on:
+      - kantahub
+    restart: unless-stopped
+
 volumes:
   kantahub-index:
+  kantahub-tls:

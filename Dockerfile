@@ -37,8 +37,17 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 
+# The optional HTTPS front door (see https-proxy.mjs) mints its own
+# self-signed certificate, which needs the openssl CLI.
+RUN apk add --no-cache openssl
+COPY --from=builder --chown=node:node /app/https-proxy.mjs ./https-proxy.mjs
+
 # The persisted library index is written here (backed by a named volume).
 RUN mkdir -p /index && chown node:node /index
+# The HTTPS front door stores its certificate here. Docker initialises a named
+# volume from this directory (ownership included), so the unprivileged user can
+# write the certificate into it.
+RUN mkdir -p /tls && chown node:node /tls
 
 USER node
 EXPOSE 3000

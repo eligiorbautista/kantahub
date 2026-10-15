@@ -88,6 +88,36 @@ refresh `/tv`.
 
 ---
 
+## HTTPS (para gumana ang audio sa TV at laptop)
+
+Browsers only expose the karaoke **audio engine (AudioWorklet)** in a *secure
+context*. `http://localhost` qualifies, but a plain `http://192.168.1.2:3005`
+does **not** — on that address the TV screen cannot play music (it now shows an
+explanation instead of frozen lyrics).
+
+The compose file therefore also runs a small HTTPS front door on port **3443**:
+
+| Screen | URL |
+|--------|-----|
+| TV | `https://192.168.1.2:3443/tv` |
+| Phone (controller) | `https://192.168.1.2:3443/` |
+| Admin | `https://192.168.1.2:3443/admin` |
+
+It creates its own self-signed certificate on first run, so each device shows a
+one-time warning — choose **Advanced → Proceed**. The certificate lives in the
+`kantahub-tls` volume, so the warning happens once per device.
+
+- Change the address in `.env` (`KANTAHUB_TLS_HOST=192.168.1.2`) if your server's
+  LAN IP changes; the certificate is regenerated for the new address after
+  `docker compose down && docker compose up -d`.
+- The plain `http://<host>:3005` port keeps working and is untouched (the
+  controller needs no audio, so a phone works fine over it).
+- If a TV refuses the self-signed certificate entirely, use a trusted one
+  instead (a real domain + Let's Encrypt, or Tailscale). Remove the
+  `kantahub-https` service from `docker-compose.yml` if you don't want it.
+
+---
+
 ## Configuration
 
 `docker-compose.yml` mounts host folders into the container and reads a few environment

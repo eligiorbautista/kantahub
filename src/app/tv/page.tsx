@@ -15,8 +15,9 @@ export default async function TvPage() {
   // The advertised base URL is a runtime fact (request Host), so mark the page
   // dynamic under Cache Components.
   await connection();
-  const host = (await headers()).get("host");
-  const controllerUrl = baseUrlForRequest(host);
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host");
+  const controllerUrl = baseUrlForRequest(host, requestHeaders.get("x-forwarded-proto"));
   return (
     <PlayerProvider>
       <TvDisplay controllerUrl={controllerUrl} />

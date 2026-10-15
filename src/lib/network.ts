@@ -50,15 +50,17 @@ export function buildRemoteUrlFromBase(base: string, session: string): string {
  * Base URL to advertise for an incoming request.
  * PUBLIC_URL wins; otherwise the request's Host header is used (this is the
  * address the client actually reached us on — correct inside Docker, where
- * os.networkInterfaces() would report the container's internal IP); the LAN
- * auto-detection is a last-resort fallback.
+ * os.networkInterfaces() would report the container's internal IP). The scheme
+ * follows x-forwarded-proto, so a request that came through the HTTPS front
+ * door advertises https:// instead of http://. The LAN auto-detection is a
+ * last-resort fallback.
  */
-export function baseUrlForRequest(host: string | null | undefined): string {
+export function baseUrlForRequest(host: string | null | undefined, forwardedProto?: string | null): string {
   if (process.env.PUBLIC_URL) {
     return process.env.PUBLIC_URL;
   }
   if (host) {
-    return `http://${host}`;
+    return `${forwardedProto === "https" ? "https" : "http"}://${host}`;
   }
   return getServerBaseUrl();
 }

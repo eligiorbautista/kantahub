@@ -53,6 +53,28 @@ describe("interludeInfo", () => {
     expect(interludeInfo(withGap, -1).active).toBe(false);
     expect(interludeInfo(withGap, 25).active).toBe(false);
   });
+
+  it("waits for the line's own length before showing a break", () => {
+    // The last fragment starts at 4s, but a line that took that long to sing is
+    // still running: the break must not replace it yet.
+    const longLine: LyricLine[] = [
+      { timeSec: 0, endSec: 4, text: "A line that takes a while to sing" },
+      { timeSec: 30, endSec: 32, text: "Two" },
+    ];
+    expect(interludeInfo(longLine, 3).active).toBe(false);
+    expect(interludeInfo(longLine, 5).active).toBe(false); // 0 + 4 + 1.5 = 5.5
+    expect(interludeInfo(longLine, 7).active).toBe(true);
+  });
+
+  it("assumes a short line when a line has no known end", () => {
+    const singleFragment: LyricLine[] = [
+      { timeSec: 0, text: "One" },
+      { timeSec: 30, text: "Two" },
+    ];
+    expect(interludeInfo(singleFragment, 1).active).toBe(false);
+    expect(interludeInfo(singleFragment, 3).active).toBe(false); // 0 + 2.5 + 1.5 = 4
+    expect(interludeInfo(singleFragment, 5).active).toBe(true);
+  });
 });
 
 const load = (f: string) => readFileSync(new URL(`./fixtures/${f}`, import.meta.url));

@@ -152,6 +152,12 @@ export function introCountdown(lines: LyricLine[], timeSec: number): number | nu
 export const INTERLUDE_MIN_SEC = 6;
 /** Seconds before the next line when the "singing in" countdown reappears. */
 export const INTERLUDE_COUNTDOWN_SEC = 5;
+/**
+ * Assumed length of a lyric line whose end is unknown (a single-fragment line
+ * carries no end tick). Used only to keep the break card from replacing a line
+ * that may still be sung.
+ */
+export const MIN_LINE_SEC = 2.5;
 
 export interface InterludeInfo {
   /** True while the song sits in an instrumental break between two lines. */
@@ -161,17 +167,27 @@ export interface InterludeInfo {
 }
 
 // Detect an instrumental break between two lyric lines: the current line has
-// been sung (past its last syllable) but the next one is still far away. Small
-// gaps are just breaths and do not count.
+// been sung but the next one is still far away. Small gaps are just breaths and
+// do not count.
 export function interludeInfo(lines: LyricLine[], timeSec: number): InterludeInfo {
   const active = activeLineIndex(lines, timeSec);
   if (active < 0) return { active: false, untilNextSec: 0 };
   const current = lines[active];
   const next = lines[active + 1];
   if (!next) return { active: false, untilNextSec: 0 };
-  const sungEnd = current.endSec ?? current.timeSec;
-  if (next.timeSec - sungEnd <= INTERLUDE_MIN_SEC) return { active: false, untilNextSec: 0 };
-  // A short tail lets the last syllable finish before the break appears.
-  if (timeSec <= sungEnd + 0.5) return { active: false, untilNextSec: 0 };
+
+  // `endSec` is the tick of the line's LAST fragment, i.e. the start of its
+  // final syllable — and a single-fragment line carries no end at all — so the
+  // singing always runs past it. Only a genuinely long break counts.
+  const lastSyllable =
+    current.endSec !== undefined && current.endSec > current.timeSec ? current.endSec : current.timeSec;
+  if (next.timeSec - lastSyllable <= INTERLUDE_MIN_SEC) return { active: false, untilNextSec: 0 };
+
+  // Wait out the line's own span (how long it took to reach that syllable) plus
+  // a beat, so the break card never replaces a line that is still being sung.
+  // A single-fragment line has no span at all, so assume a short line.
+  const sungSpan = Math.max(lastSyllable - current.timeSec, MIN_LINE_SEC);
+  if (timeSec <= current.timeSec + sungSpan + 1.5) return { active: false, untilNextSec: 0 };
+
   return { active: true, untilNextSec: next.timeSec - timeSec };
 }
